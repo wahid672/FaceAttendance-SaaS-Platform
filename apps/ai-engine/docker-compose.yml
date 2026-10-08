@@ -22,6 +22,7 @@ services:
       start_period: 30s
     networks:
       - ai-network
+      - caddy_net
 
 volumes:
   insightface_models:
@@ -31,3 +32,5 @@ networks:
   ai-network:
     name: faceattendance_ai_net
     driver: bridge
+  caddy_net:
+    external: true
