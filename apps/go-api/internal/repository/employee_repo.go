@@ -1,0 +1,121 @@
+package repository
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/faceattendance/go-api/internal/model"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type EmployeeRepository interface {
+	GetByID(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) (*model.Employee, error)
+	GetByEmail(ctx context.Context, email string) (*model.Employee, *model.Tenant, error)
+	UpdateFaceEmbedding(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) error
+	CalculateCosineSimilarity(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) (float64, error)
+}
+
+type employeeRepository struct {
+	db *pgxpool.Pool
+}
+
+func NewEmployeeRepository(db *pgxpool.Pool) EmployeeRepository {
+	return &employeeRepository{db: db}
+}
+
+func (r *employeeRepository) GetByID(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) (*model.Employee, error) {
+	query := `
+		SELECT id, tenant_id, office_id, name, email, password_hash, employee_code,
+		       face_embedding::text, face_registered_at, is_active, created_at
+		FROM employees
+		WHERE id = $1 AND tenant_id = $2
+	`
+	var e model.Employee
+	var embeddingStr *string
+	var faceRegAt *time.Time
+
+	err := r.db.QueryRow(ctx, query, id, tenantID).Scan(
+		&e.ID, &e.TenantID, &e.OfficeID, &e.Name, &e.Email, &e.PasswordHash, &e.EmployeeCode,
+		&embeddingStr, &faceRegAt, &e.IsActive, &e.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	e.FaceEmbedding = embeddingStr
+	e.FaceRegisteredAt = faceRegAt
+	return &e, nil
+}
+
+func (r *employeeRepository) GetByEmail(ctx context.Context, email string) (*model.Employee, *model.Tenant, error) {
+	query := `
+		SELECT e.id, e.tenant_id, e.office_id, e.name, e.email, e.password_hash, e.employee_code,
+		       e.face_embedding::text, e.face_registered_at, e.is_active, e.created_at,
+		       t.id, t.name, t.subdomain, t.is_active, t.created_at
+		FROM employees e
+		JOIN tenants t ON t.id = e.tenant_id
+		WHERE e.email = $1
+	`
+	var e model.Employee
+	var t model.Tenant
+	var embeddingStr *string
+	var faceRegAt *time.Time
+
+	err := r.db.QueryRow(ctx, query, email).Scan(
+		&e.ID, &e.TenantID, &e.OfficeID, &e.Name, &e.Email, &e.PasswordHash, &e.EmployeeCode,
+		&embeddingStr, &faceRegAt, &e.IsActive, &e.CreatedAt,
+		&t.ID, &t.Name, &t.Subdomain, &t.IsActive, &t.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil, nil
+		}
+		return nil, nil, err
+	}
+
+	e.FaceEmbedding = embeddingStr
+	e.FaceRegisteredAt = faceRegAt
+	return &e, &t, nil
+}
+
+func (r *employeeRepository) UpdateFaceEmbedding(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) error {
+	query := `
+		UPDATE employees
+		SET face_embedding = $1::vector,
+		    face_registered_at = NOW()
+		WHERE id = $2 AND tenant_id = $3
+	`
+	cmdTag, err := r.db.Exec(ctx, query, embeddingStr, id, tenantID)
+	if err != nil {
+		return err
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return errors.New("employee not found or tenant mismatch")
+	}
+	return nil
+}
+
+func (r *employeeRepository) CalculateCosineSimilarity(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) (float64, error) {
+	// Cosine distance in pgvector is calculated using <=> operator
+	// Cosine similarity = 1 - (face_embedding <=> query_vector)
+	query := `
+		SELECT (1.0 - (face_embedding <=> $1::vector)) AS similarity
+		FROM employees
+		WHERE id = $2 AND tenant_id = $3 AND face_embedding IS NOT NULL
+	`
+	var similarity float64
+	err := r.db.QueryRow(ctx, query, embeddingStr, id, tenantID).Scan(&similarity)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0.0, errors.New("employee face is not enrolled or employee not found")
+		}
+		return 0.0, err
+	}
+	return similarity, nil
+}
