@@ -1,0 +1,595 @@
+{
+	"info": {
+		"_postman_id": "a93df5b4-d53c-4e89-b1d7-27b0f69da0a1",
+		"name": "FaceAttendance SaaS Go API",
+		"description": "Dokumentasi Postman Collection untuk FaceAttendance SaaS Go API (High-Performance Attendance & pgvector Integration).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "0. Health Check",
+			"item": [
+				{
+					"name": "Health Check Service & DB",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Memeriksa status hidup layanan Go API serta koneksi PostgreSQL pgvector connection pool."
+					},
+					"response": [
+						{
+							"name": "Health Check OK",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/health",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"health"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"database\": \"healthy\",\n    \"service\": \"go-api\",\n    \"status\": \"ok\",\n    \"version\": \"1.0.0\"\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "1. Authentication",
+			"item": [
+				{
+					"name": "Login Employee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.collectionVariables.set(\"token\", jsonData.token);",
+									"        console.log(\"Bearer token auto-saved to collection variable:\", jsonData.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"budi@techcorp.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Autentikasi akun employee. Mengembalikan token JWT yang otomatis disimpan ke variabel `{{token}}`."
+					},
+					"response": [
+						{
+							"name": "Login Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"budi@techcorp.com\",\n    \"password\": \"password123\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/auth/login",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"auth",
+										"login"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"employee\": {\n        \"id\": \"c56a4180-65aa-42ec-a945-5fd21dec0538\",\n        \"tenant_id\": \"e02b740e-7c57-4ea2-a164-97217db52f14\",\n        \"office_id\": \"3a726bd7-4999-4d69-bb11-c913501a3ca5\",\n        \"name\": \"Budi Santoso\",\n        \"email\": \"budi@techcorp.com\",\n        \"employee_code\": \"EMP001\",\n        \"is_active\": true,\n        \"is_enrolled\": true\n    },\n    \"tenant\": {\n        \"id\": \"e02b740e-7c57-4ea2-a164-97217db52f14\",\n        \"name\": \"TechCorp Indonesia\",\n        \"subdomain\": \"techcorp\"\n    }\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "2. Employees",
+			"item": [
+				{
+					"name": "Get Profile Me",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"employees",
+								"me"
+							]
+						},
+						"description": "Mengambil informasi profil detail employee yang sedang login, termasuk status `is_enrolled` pendaftaran wajah."
+					},
+					"response": [
+						{
+							"name": "Profile Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/employees/me",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"employees",
+										"me"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"employee\": {\n        \"id\": \"c56a4180-65aa-42ec-a945-5fd21dec0538\",\n        \"tenant_id\": \"e02b740e-7c57-4ea2-a164-97217db52f14\",\n        \"office_id\": \"3a726bd7-4999-4d69-bb11-c913501a3ca5\",\n        \"name\": \"Budi Santoso\",\n        \"email\": \"budi@techcorp.com\",\n        \"employee_code\": \"EMP001\",\n        \"is_active\": true,\n        \"is_enrolled\": true,\n        \"face_registered_at\": \"2026-10-09T06:00:00Z\"\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "Enroll Face (Upload Foto Master Wajah)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "images",
+									"description": "Foto wajah sampel 1 (bisa multiple input dengan nama 'images' atau 'image')",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "images",
+									"description": "Foto wajah sampel 2",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "images",
+									"description": "Foto wajah sampel 3",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "employee_id",
+									"value": "",
+									"description": "Opsional: Jika admin ingin mendaftarkan wajah employee lain. Kosongkan untuk mendaftarkan akun sendiri.",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/enroll-face",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"employees",
+								"enroll-face"
+							]
+						},
+						"description": "Mendaftarkan sampel foto wajah employee (rekomendasi 3-5 foto). AI engine akan mengekstraksi vektor 512 dimensi dan menyimpannya ke kolom `face_embedding` di PostgreSQL pgvector."
+					},
+					"response": [
+						{
+							"name": "Enroll Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "images",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/employees/enroll-face",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"employees",
+										"enroll-face"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"Face enrolled and registered successfully\",\n    \"employee_id\": \"c56a4180-65aa-42ec-a945-5fd21dec0538\",\n    \"samples_processed\": 3,\n    \"embedding_dimensions\": 512\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "3. Attendance",
+			"item": [
+				{
+					"name": "Check-In / Out Attendance",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "image",
+									"description": "File foto selfie saat melakukan presensi (Wajib)",
+									"type": "file",
+									"src": []
+								},
+								{
+									"key": "latitude",
+									"value": "-6.2088",
+									"description": "Koordinat Latitude GPS perangkat (Wajib)",
+									"type": "text"
+								},
+								{
+									"key": "longitude",
+									"value": "106.8456",
+									"description": "Koordinat Longitude GPS perangkat (Wajib)",
+									"type": "text"
+								},
+								{
+									"key": "attendance_type",
+									"value": "IN",
+									"description": "Jenis presensi: 'IN' (Masuk) atau 'OUT' (Pulang). Default: 'IN'",
+									"type": "text"
+								},
+								{
+									"key": "device_id",
+									"value": "pixel8-device-uuid-99",
+									"description": "Identifier hardware perangkat Android / mobile",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/attendance/check-in",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"attendance",
+								"check-in"
+							]
+						},
+						"description": "Melakukan transaksi presensi. Backend akan memvalidasi:\n1. Geofencing (Haversine formula jarak meter ke kantor <= radius_meters)\n2. Face Verification (Cosine Similarity vektor 512-d via pgvector >= 0.65)"
+					},
+					"response": [
+						{
+							"name": "Check-In Verified (Success)",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "image",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "latitude",
+											"value": "-6.2088",
+											"type": "text"
+										},
+										{
+											"key": "longitude",
+											"value": "106.8456",
+											"type": "text"
+										},
+										{
+											"key": "attendance_type",
+											"value": "IN",
+											"type": "text"
+										},
+										{
+											"key": "device_id",
+											"value": "pixel8-device-uuid-99",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/attendance/check-in",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"attendance",
+										"check-in"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"Attendance recorded and verified successfully\",\n    \"data\": {\n        \"attendance_id\": \"b95bbf8c-4bc7-43cf-aa34-d3434eafe2b0\",\n        \"clock_time\": \"2026-10-09T08:00:15.123456Z\",\n        \"attendance_type\": \"IN\",\n        \"similarity_score\": 0.8842,\n        \"distance_meters\": 12.5,\n        \"allowed_radius\": 50,\n        \"is_valid\": true,\n        \"validation_notes\": []\n    }\n}"
+						},
+						{
+							"name": "Check-In Rejected (Out of Radius / Face Mismatch)",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "image",
+											"type": "file",
+											"src": []
+										},
+										{
+											"key": "latitude",
+											"value": "-6.3000",
+											"type": "text"
+										},
+										{
+											"key": "longitude",
+											"value": "106.9000",
+											"type": "text"
+										},
+										{
+											"key": "attendance_type",
+											"value": "IN",
+											"type": "text"
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/attendance/check-in",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"attendance",
+										"check-in"
+									]
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": false,\n    \"message\": \"Attendance rejected: verification criteria not met\",\n    \"data\": {\n        \"attendance_id\": \"e42fa418-8685-4ae0-ba4f-ee35ffbdc622\",\n        \"clock_time\": \"2026-10-09T08:05:00.654321Z\",\n        \"attendance_type\": \"IN\",\n        \"similarity_score\": 0.4851,\n        \"distance_meters\": 1250.4,\n        \"allowed_radius\": 50,\n        \"is_valid\": false,\n        \"validation_notes\": [\n            \"Out of geofence bounds: current distance 1250.4m exceeds office limit 50m\",\n            \"Face match failed: similarity score 0.4851 is below minimum threshold 0.65\"\n        ]\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Attendance History",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/attendance/history?limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"attendance",
+								"history"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Batas jumlah data riwayat yang ditampilkan (default: 20)"
+								}
+							]
+						},
+						"description": "Mengambil riwayat transaksi presensi milik employee yang sedang login, diurutkan dari transaksi terbaru."
+					},
+					"response": [
+						{
+							"name": "History Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/attendance/history?limit=20",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"attendance",
+										"history"
+									],
+									"query": [
+										{
+											"key": "limit",
+											"value": "20"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"count\": 1,\n    \"data\": [\n        {\n            \"id\": \"b95bbf8c-4bc7-43cf-aa34-d3434eafe2b0\",\n            \"tenant_id\": \"e02b740e-7c57-4ea2-a164-97217db52f14\",\n            \"employee_id\": \"c56a4180-65aa-42ec-a945-5fd21dec0538\",\n            \"clock_time\": \"2026-10-09T08:00:15Z\",\n            \"attendance_type\": \"IN\",\n            \"similarity_score\": 0.8842,\n            \"latitude\": -6.2088,\n            \"longitude\": 106.8456,\n            \"distance_meters\": 12.5,\n            \"device_id\": \"pixel8-device-uuid-99\",\n            \"photo_url\": null,\n            \"is_valid\": true,\n            \"created_at\": \"2026-10-09T08:00:15Z\"\n        }\n    ]\n}"
+						}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
