@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "a93df5b4-d53c-4e89-b1d7-27b0f69da0a1",
 		"name": "FaceAttendance SaaS Go API",
-		"description": "Dokumentasi Postman Collection untuk FaceAttendance SaaS Go API (High-Performance Attendance & pgvector Integration).",
+		"description": "Dokumentasi Postman Collection lengkap untuk FaceAttendance SaaS Go API (Super Admin, Multi-Tenancy, Offices, Users, dan Attendance Reports).",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
@@ -16,16 +16,10 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/docs",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"docs"
-							]
-						},
-						"description": "Membuka antarmuka interaktif Swagger UI OpenAPI 3.0."
-					},
-					"response": []
+							"host": ["{{base_url}}"],
+							"path": ["docs"]
+						}
+					}
 				},
 				{
 					"name": "Health Check Service & DB",
@@ -34,44 +28,22 @@
 						"header": [],
 						"url": {
 							"raw": "{{base_url}}/health",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"health"
-							]
-						},
-						"description": "Memeriksa status hidup layanan Go API serta koneksi PostgreSQL pgvector connection pool."
-					},
-					"response": [
-						{
-							"name": "Health Check OK",
-							"originalRequest": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{base_url}}/health",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"health"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"ai_engine\": \"healthy\",\n    \"database\": \"healthy\",\n    \"service\": \"go-api\",\n    \"status\": \"ok\",\n    \"version\": \"1.0.0\"\n}"
+							"host": ["{{base_url}}"],
+							"path": ["health"]
 						}
-					]
+					}
+				},
+				{
+					"name": "Get Platform Settings / Branding (Public)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/platform/settings",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "platform", "settings"]
+						}
+					}
 				}
 			]
 		},
@@ -79,7 +51,7 @@
 			"name": "1. Authentication",
 			"item": [
 				{
-					"name": "Login Employee",
+					"name": "Login Super Admin",
 					"event": [
 						{
 							"listen": "test",
@@ -88,8 +60,8 @@
 									"if (pm.response.code === 200) {",
 									"    var jsonData = pm.response.json();",
 									"    if (jsonData.token) {",
-									"        pm.collectionVariables.set(\"token\", jsonData.token);",
-									"        console.log(\"Bearer token auto-saved to collection variable:\", jsonData.token);",
+									"        pm.environment.set(\"superadmin_token\", jsonData.token);",
+									"        pm.environment.set(\"token\", jsonData.token);",
 									"    }",
 									"}"
 								],
@@ -99,898 +71,424 @@
 					],
 					"request": {
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
 							"raw": "{\n    \"email\": \"wahidalimudin672@gmail.com\",\n    \"password\": \"Password123!\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/auth/login",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"auth",
-								"login"
-							]
-						},
-						"description": "Autentikasi akun employee. Mengembalikan token JWT yang otomatis disimpan ke variabel `{{token}}`."
-					},
-					"response": [
-						{
-							"name": "Login Success",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"email\": \"wahidalimudin672@gmail.com\",\n    \"password\": \"Password123!\"\n}"
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/auth/login",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"auth",
-										"login"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"employee\": {\n        \"id\": \"c0000000-0000-0000-0000-000000000001\",\n        \"tenant_id\": \"a0000000-0000-0000-0000-000000000001\",\n        \"office_id\": \"b0000000-0000-0000-0000-000000000001\",\n        \"name\": \"Wahid Alimudin\",\n        \"email\": \"wahidalimudin672@gmail.com\",\n        \"employee_code\": \"EMP-001\",\n        \"is_active\": true,\n        \"is_enrolled\": false\n    },\n    \"tenant\": {\n        \"id\": \"a0000000-0000-0000-0000-000000000001\",\n        \"name\": \"TechCorp Indonesia\",\n        \"subdomain\": \"techcorp\"\n    }\n}"
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "login"]
 						}
-					]
+					}
+				},
+				{
+					"name": "Login Tenant Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.token) {",
+									"        pm.environment.set(\"tenant_admin_token\", jsonData.token);",
+									"        pm.environment.set(\"token\", jsonData.token);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@alhidayah.ponpes.id\",\n    \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "auth", "login"]
+						}
+					}
 				}
 			]
 		},
 		{
-			"name": "2. Users",
+			"name": "2. Super Admin (Platform & Tenants)",
 			"item": [
+				{
+					"name": "Update Platform Settings",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"app_name\": \"Siakad Ponpes Face Attendance\",\n    \"company_name\": \"PT Edukasi Digital Nusantara\",\n    \"support_email\": \"support@siakadponpes.id\",\n    \"logo_url\": \"https://example.com/logo.png\",\n    \"footer_text\": \"© 2026 Siakad Ponpes SaaS. All rights reserved.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/superadmin/settings",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "superadmin", "settings"]
+						}
+					}
+				},
+				{
+					"name": "List All Tenants",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/v1/superadmin/tenants?page=1&limit=20&search=",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "superadmin", "tenants"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "20" },
+								{ "key": "search", "value": "" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Create New Tenant",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Pondok Pesantren Darussalam\",\n    \"subdomain\": \"darussalam\",\n    \"admin_name\": \"Ustadz Rahman\",\n    \"admin_email\": \"admin@darussalam.ponpes.id\",\n    \"admin_password\": \"Password123!\",\n    \"admin_user_code\": \"ADM-001\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/superadmin/tenants",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "superadmin", "tenants"]
+						}
+					}
+				},
+				{
+					"name": "Get Tenant Detail",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/v1/superadmin/tenants/{{tenant_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "superadmin", "tenants", "{{tenant_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update Tenant",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Pondok Pesantren Darussalam Updated\",\n    \"subdomain\": \"darussalam\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/superadmin/tenants/{{tenant_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "superadmin", "tenants", "{{tenant_id}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Offices & Geofencing",
+			"item": [
+				{
+					"name": "List Offices",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/v1/offices",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "offices"]
+						}
+					}
+				},
+				{
+					"name": "Create Office",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Kampus Putri Gedung B\",\n    \"latitude\": -6.208800,\n    \"longitude\": 106.845600,\n    \"radius_meters\": 100\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/offices",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "offices"]
+						}
+					}
+				},
+				{
+					"name": "Get Office Detail",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/v1/offices/{{office_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "offices", "{{office_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update Office",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Kampus Putri Gedung B Renovasi\",\n    \"latitude\": -6.209000,\n    \"longitude\": 106.846000,\n    \"radius_meters\": 120\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/offices/{{office_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "offices", "{{office_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Delete Office",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "DELETE",
+						"url": {
+							"raw": "{{base_url}}/api/v1/offices/{{office_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "offices", "{{office_id}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Users Management",
+			"item": [
+				{
+					"name": "List Users (Pagination & Filters)",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/v1/users?page=1&limit=20&search=&is_active=true",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "20" },
+								{ "key": "search", "value": "" },
+								{ "key": "is_active", "value": "true" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Get User Detail",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "{{user_id}}"]
+						}
+					}
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Ahmad Dahlan Al-Fatih\",\n    \"user_code\": \"SISWA-001\",\n    \"email\": \"ahmad@sekolah.sch.id\",\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/{{user_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "{{user_id}}"]
+						}
+					}
+				},
 				{
 					"name": "Create User (Single)",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"name\": \"Ahmad Fauzi\",\n    \"email\": \"ahmad@sekolah.com\",\n    \"password\": \"Password123!\",\n    \"user_code\": \"SISWA-001\",\n    \"office_id\": \"b0000000-0000-0000-0000-000000000001\"\n}"
+							"raw": "{\n    \"name\": \"Ahmad Dahlan\",\n    \"email\": \"ahmad@sekolah.sch.id\",\n    \"password\": \"Password123!\",\n    \"user_code\": \"SISWA-001\",\n    \"office_id\": \"b0000000-0000-0000-0000-000000000001\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/users",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"users"
-							]
-						},
-						"description": "Menambahkan data pengguna (santri/siswa/pegawai) baru di bawah tenant yang sama. Password di-hash menggunakan bcrypt."
-					},
-					"response": [
-						{
-							"name": "Create User Success",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"name\": \"Ahmad Fauzi\",\n    \"email\": \"ahmad@sekolah.com\",\n    \"password\": \"Password123!\",\n    \"user_code\": \"SISWA-001\",\n    \"office_id\": \"b0000000-0000-0000-0000-000000000001\"\n}"
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/users",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"users"
-									]
-								}
-							},
-							"status": "Created",
-							"code": 201,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"User created successfully\",\n    \"user\": {\n        \"id\": \"f51950d2-97d8-4f05-87d4-0610fba0d540\",\n        \"tenant_id\": \"a0000000-0000-0000-0000-000000000001\",\n        \"office_id\": \"b0000000-0000-0000-0000-000000000001\",\n        \"name\": \"Ahmad Fauzi\",\n        \"email\": \"ahmad@sekolah.com\",\n        \"user_code\": \"SISWA-001\",\n        \"is_active\": true,\n        \"is_enrolled\": false,\n        \"created_at\": \"2026-10-09T09:30:00Z\"\n    }\n}"
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users"]
 						}
-					]
+					}
 				},
 				{
 					"name": "Bulk Create Users (JSON)",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
 						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"users\": [\n        {\n            \"name\": \"Ahmad Fauzi\",\n            \"email\": \"ahmad@sekolah.com\",\n            \"password\": \"Password123!\",\n            \"user_code\": \"SISWA-001\"\n        },\n        {\n            \"name\": \"Dewi Sartika\",\n            \"email\": \"dewi@sekolah.com\",\n            \"password\": \"Password123!\",\n            \"user_code\": \"SISWA-002\"\n        }\n    ]\n}"
+							"raw": "[\n    {\n        \"name\": \"Santri Aisyah\",\n        \"email\": \"aisyah@sekolah.sch.id\",\n        \"password\": \"Password123!\",\n        \"user_code\": \"SANTRI-001\"\n    },\n    {\n        \"name\": \"Santri Bilal\",\n        \"email\": \"bilal@sekolah.sch.id\",\n        \"password\": \"Password123!\",\n        \"user_code\": \"SANTRI-002\"\n    }\n]"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/users/bulk",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"users",
-								"bulk"
-							]
-						},
-						"description": "Menambahkan banyak pengguna sekaligus melalui JSON array / wrapper dalam satu transaksi database."
-					},
-					"response": [
-						{
-							"name": "Bulk Create Success",
-							"originalRequest": {
-								"method": "POST",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"users\": [\n        {\n            \"name\": \"Ahmad Fauzi\",\n            \"email\": \"ahmad@sekolah.com\",\n            \"password\": \"Password123!\",\n            \"user_code\": \"SISWA-001\"\n        }\n    ]\n}"
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/users/bulk",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"users",
-										"bulk"
-									]
-								}
-							},
-							"status": "Created",
-							"code": 201,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"Bulk create users completed\",\n    \"total_requested\": 2,\n    \"success_count\": 2,\n    \"failed_count\": 0,\n    \"errors\": [],\n    \"data\": [\n        {\n            \"id\": \"11111111-2222-3333-4444-555555555555\",\n            \"name\": \"Ahmad Fauzi\",\n            \"email\": \"ahmad@sekolah.com\",\n            \"user_code\": \"SISWA-001\"\n        }\n    ]\n}"
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "bulk"]
 						}
-					]
+					}
 				},
 				{
-					"name": "Import Users from CSV",
+					"name": "Bulk Delete Users (JSON)",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "POST",
-						"header": [],
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "DELETE",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
 						"body": {
-							"mode": "formdata",
-							"formdata": [
-								{
-									"key": "file",
-									"description": "File .csv dengan header: name,email,password,user_code,office_id",
-									"type": "file",
-									"src": []
-								}
-							]
+							"mode": "raw",
+							"raw": "{\n    \"user_ids\": [\n        \"c0000000-0000-0000-0000-000000000002\",\n        \"c0000000-0000-0000-0000-000000000003\"\n    ]\n}"
 						},
 						"url": {
-							"raw": "{{base_url}}/api/v1/users/import-csv",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"users",
-								"import-csv"
-							]
-						},
-						"description": "Import data pengguna massal dari file .csv."
-					},
-					"response": [
-						{
-							"name": "Import CSV Success",
-							"originalRequest": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "file",
-											"type": "file",
-											"src": []
-										}
-									]
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/users/import-csv",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"users",
-										"import-csv"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"Import users from CSV completed\",\n    \"total_requested\": 50,\n    \"success_count\": 48,\n    \"failed_count\": 2,\n    \"errors\": [\n        {\n            \"row\": 6,\n            \"email\": \"duplicate@sekolah.com\",\n            \"error\": \"email is already registered in database\"\n        }\n    ],\n    \"data\": []\n}"
+							"raw": "{{base_url}}/api/v1/users/bulk",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "bulk"]
 						}
-					]
+					}
 				},
 				{
-					"name": "Get Profile Me",
+					"name": "Get Profile (Me)",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
 						"method": "GET",
-						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/v1/users/me",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"users",
-								"me"
-							]
-						},
-						"description": "Mengambil informasi profil detail pengguna yang sedang login."
-					},
-					"response": [
-						{
-							"name": "Profile Response",
-							"originalRequest": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{base_url}}/api/v1/users/me",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"users",
-										"me"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"user\": {\n        \"id\": \"c0000000-0000-0000-0000-000000000001\",\n        \"tenant_id\": \"a0000000-0000-0000-0000-000000000001\",\n        \"name\": \"Wahid Alimudin\",\n        \"email\": \"wahidalimudin672@gmail.com\",\n        \"user_code\": \"EMP-001\",\n        \"is_active\": true,\n        \"is_enrolled\": false\n    }\n}"
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "me"]
 						}
-					]
+					}
 				},
 				{
-					"name": "Delete User (Single)",
+					"name": "Enroll Face Master Vector",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/api/v1/users/f51950d2-97d8-4f05-87d4-0610fba0d540",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"users",
-								"f51950d2-97d8-4f05-87d4-0610fba0d540"
-							]
-						},
-						"description": "Menghapus akun user berdasarkan UUID. Ditolak jika mencoba menghapus akun diri sendiri."
-					},
-					"response": [
-						{
-							"name": "Delete Success",
-							"originalRequest": {
-								"method": "DELETE",
-								"header": [],
-								"url": {
-									"raw": "{{base_url}}/api/v1/users/f51950d2-97d8-4f05-87d4-0610fba0d540",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"users",
-										"f51950d2-97d8-4f05-87d4-0610fba0d540"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"User deleted successfully\",\n    \"deleted_id\": \"f51950d2-97d8-4f05-87d4-0610fba0d540\"\n}"
-						}
-					]
-				},
-				{
-					"name": "Bulk Delete Users",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"user_ids\": [\n        \"11111111-2222-3333-4444-555555555555\",\n        \"22222222-3333-4444-5555-666666666666\"\n    ]\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/v1/users/bulk",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"users",
-								"bulk"
-							]
-						},
-						"description": "Menghapus banyak akun pengguna sekaligus berdasarkan daftar UUID. Akun diri sendiri otomatis dilewati/dilindungi."
-					},
-					"response": [
-						{
-							"name": "Bulk Delete Success",
-							"originalRequest": {
-								"method": "DELETE",
-								"header": [
-									{
-										"key": "Content-Type",
-										"value": "application/json"
-									}
-								],
-								"body": {
-									"mode": "raw",
-									"raw": "{\n    \"user_ids\": [\n        \"11111111-2222-3333-4444-555555555555\"\n    ]\n}"
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/users/bulk",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"users",
-										"bulk"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"Bulk delete completed\",\n    \"total_requested\": 1,\n    \"deleted_count\": 1,\n    \"skipped_self\": false,\n    \"deleted_ids\": [\n        \"11111111-2222-3333-4444-555555555555\"\n    ]\n}"
-						}
-					]
-				},
-				{
-					"name": "Enroll Face (Upload Foto Master Wajah)",
-					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
 						"method": "POST",
-						"header": [],
 						"body": {
 							"mode": "formdata",
 							"formdata": [
-								{
-									"key": "images",
-									"description": "Foto wajah sampel 1",
-									"type": "file",
-									"src": []
-								},
-								{
-									"key": "images",
-									"description": "Foto wajah sampel 2",
-									"type": "file",
-									"src": []
-								},
-								{
-									"key": "images",
-									"description": "Foto wajah sampel 3",
-									"type": "file",
-									"src": []
-								},
-								{
-									"key": "user_id",
-									"value": "",
-									"description": "Opsional: Jika admin mendaftarkan wajah user lain",
-									"type": "text"
-								}
+								{ "key": "images", "type": "file", "src": [] }
 							]
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/users/enroll-face",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"users",
-								"enroll-face"
-							]
-						},
-						"description": "Mendaftarkan sampel foto master wajah (3-5 foto) ke pgvector."
-					},
-					"response": [
-						{
-							"name": "Enroll Success",
-							"originalRequest": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "images",
-											"type": "file",
-											"src": []
-										}
-									]
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/users/enroll-face",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"users",
-										"enroll-face"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"Face enrolled and registered successfully\",\n    \"user_id\": \"c0000000-0000-0000-0000-000000000001\",\n    \"samples_processed\": 3,\n    \"embedding_dimensions\": 512\n}"
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "users", "enroll-face"]
 						}
-					]
+					}
 				}
 			]
 		},
 		{
-			"name": "3. Attendance",
+			"name": "5. Attendance & Reporting",
 			"item": [
 				{
-					"name": "Check-In / Out Attendance",
+					"name": "Attendance Check-In (Selfie & GPS)",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
 						"method": "POST",
-						"header": [],
 						"body": {
 							"mode": "formdata",
 							"formdata": [
-								{
-									"key": "image",
-									"description": "File foto selfie saat melakukan presensi (Wajib)",
-									"type": "file",
-									"src": []
-								},
-								{
-									"key": "latitude",
-									"value": "-6.2088",
-									"description": "Koordinat Latitude GPS perangkat (Wajib)",
-									"type": "text"
-								},
-								{
-									"key": "longitude",
-									"value": "106.8456",
-									"description": "Koordinat Longitude GPS perangkat (Wajib)",
-									"type": "text"
-								},
-								{
-									"key": "attendance_type",
-									"value": "IN",
-									"description": "Jenis presensi: 'IN' (Masuk) atau 'OUT' (Pulang). Default: 'IN'",
-									"type": "text"
-								},
-								{
-									"key": "device_id",
-									"value": "pixel8-device-uuid-99",
-									"description": "Identifier hardware perangkat Android / mobile",
-									"type": "text"
-								}
+								{ "key": "image", "type": "file", "src": [] },
+								{ "key": "latitude", "value": "-6.208800", "type": "text" },
+								{ "key": "longitude", "value": "106.845600", "type": "text" },
+								{ "key": "device_id", "value": "Samsung-Galaxy-A52", "type": "text" },
+								{ "key": "type", "value": "IN", "type": "text" }
 							]
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/attendance/check-in",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"attendance",
-								"check-in"
-							]
-						},
-						"description": "Melakukan transaksi presensi. Backend akan memvalidasi:\n1. Geofencing (Haversine formula jarak meter ke kantor <= radius_meters)\n2. Face Verification (Cosine Similarity vektor 512-d via pgvector >= 0.65)"
-					},
-					"response": [
-						{
-							"name": "Check-In Verified (Success)",
-							"originalRequest": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "image",
-											"type": "file",
-											"src": []
-										},
-										{
-											"key": "latitude",
-											"value": "-6.2088",
-											"type": "text"
-										},
-										{
-											"key": "longitude",
-											"value": "106.8456",
-											"type": "text"
-										},
-										{
-											"key": "attendance_type",
-											"value": "IN",
-											"type": "text"
-										},
-										{
-											"key": "device_id",
-											"value": "pixel8-device-uuid-99",
-											"type": "text"
-										}
-									]
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/attendance/check-in",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"attendance",
-										"check-in"
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"message\": \"Attendance recorded and verified successfully\",\n    \"data\": {\n        \"attendance_id\": \"b95bbf8c-4bc7-43cf-aa34-d3434eafe2b0\",\n        \"clock_time\": \"2026-10-09T08:00:15.123456Z\",\n        \"attendance_type\": \"IN\",\n        \"similarity_score\": 0.8842,\n        \"distance_meters\": 12.5,\n        \"allowed_radius\": 50,\n        \"is_valid\": true,\n        \"validation_notes\": []\n    }\n}"
-						},
-						{
-							"name": "Check-In Rejected (Out of Radius / Face Mismatch)",
-							"originalRequest": {
-								"method": "POST",
-								"header": [],
-								"body": {
-									"mode": "formdata",
-									"formdata": [
-										{
-											"key": "image",
-											"type": "file",
-											"src": []
-										},
-										{
-											"key": "latitude",
-											"value": "-6.3000",
-											"type": "text"
-										},
-										{
-											"key": "longitude",
-											"value": "106.9000",
-											"type": "text"
-										},
-										{
-											"key": "attendance_type",
-											"value": "IN",
-											"type": "text"
-										}
-									]
-								},
-								"url": {
-									"raw": "{{base_url}}/api/v1/attendance/check-in",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"attendance",
-										"check-in"
-									]
-								}
-							},
-							"status": "Bad Request",
-							"code": 400,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": false,\n    \"message\": \"Attendance rejected: verification criteria not met\",\n    \"data\": {\n        \"attendance_id\": \"e42fa418-8685-4ae0-ba4f-ee35ffbdc622\",\n        \"clock_time\": \"2026-10-09T08:05:00.654321Z\",\n        \"attendance_type\": \"IN\",\n        \"similarity_score\": 0.4851,\n        \"distance_meters\": 1250.4,\n        \"allowed_radius\": 50,\n        \"is_valid\": false,\n        \"validation_notes\": [\n            \"Out of geofence bounds: current distance 1250.4m exceeds office limit 50m\",\n            \"Face match failed: similarity score 0.4851 is below minimum threshold 0.65\"\n        ]\n    }\n}"
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "attendance", "check-in"]
 						}
-					]
+					}
 				},
 				{
-					"name": "Get Attendance History",
+					"name": "Personal Attendance History",
 					"request": {
-						"auth": {
-							"type": "bearer",
-							"bearer": [
-								{
-									"key": "token",
-									"value": "{{token}}",
-									"type": "string"
-								}
-							]
-						},
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
 						"method": "GET",
-						"header": [],
 						"url": {
 							"raw": "{{base_url}}/api/v1/attendance/history?limit=20",
-							"host": [
-								"{{base_url}}"
-							],
-							"path": [
-								"api",
-								"v1",
-								"attendance",
-								"history"
-							],
-							"query": [
-								{
-									"key": "limit",
-									"value": "20",
-									"description": "Batas jumlah data riwayat yang ditampilkan (default: 20)"
-								}
-							]
-						},
-						"description": "Mengambil riwayat transaksi presensi milik employee yang sedang login, diurutkan dari transaksi terbaru."
-					},
-					"response": [
-						{
-							"name": "History Response",
-							"originalRequest": {
-								"method": "GET",
-								"header": [],
-								"url": {
-									"raw": "{{base_url}}/api/v1/attendance/history?limit=20",
-									"host": [
-										"{{base_url}}"
-									],
-									"path": [
-										"api",
-										"v1",
-										"attendance",
-										"history"
-									],
-									"query": [
-										{
-											"key": "limit",
-											"value": "20"
-										}
-									]
-								}
-							},
-							"status": "OK",
-							"code": 200,
-							"_postman_previewlanguage": "json",
-							"header": [
-								{
-									"key": "Content-Type",
-									"value": "application/json; charset=utf-8"
-								}
-							],
-							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"count\": 1,\n    \"data\": [\n        {\n            \"id\": \"b95bbf8c-4bc7-43cf-aa34-d3434eafe2b0\",\n            \"tenant_id\": \"e02b740e-7c57-4ea2-a164-97217db52f14\",\n            \"employee_id\": \"c56a4180-65aa-42ec-a945-5fd21dec0538\",\n            \"clock_time\": \"2026-10-09T08:00:15Z\",\n            \"attendance_type\": \"IN\",\n            \"similarity_score\": 0.8842,\n            \"latitude\": -6.2088,\n            \"longitude\": 106.8456,\n            \"distance_meters\": 12.5,\n            \"device_id\": \"pixel8-device-uuid-99\",\n            \"photo_url\": null,\n            \"is_valid\": true,\n            \"created_at\": \"2026-10-09T08:00:15Z\"\n        }\n    ]\n}"
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "attendance", "history"],
+							"query": [{ "key": "limit", "value": "20" }]
 						}
-					]
+					}
+				},
+				{
+					"name": "Admin Attendance Logs (All Users)",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/v1/attendance/logs?page=1&limit=50&is_valid=true",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "attendance", "logs"],
+							"query": [
+								{ "key": "page", "value": "1" },
+								{ "key": "limit", "value": "50" },
+								{ "key": "is_valid", "value": "true" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Admin Dashboard Attendance Summary",
+					"request": {
+						"auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{token}}" }] },
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/api/v1/attendance/summary?date=2026-10-09",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "attendance", "summary"],
+							"query": [{ "key": "date", "value": "2026-10-09" }]
+						}
+					}
 				}
 			]
 		}
 	],
 	"variable": [
-		{
-			"key": "base_url",
-			"value": "http://localhost:8080",
-			"type": "string"
-		},
-		{
-			"key": "token",
-			"value": "",
-			"type": "string"
-		}
+		{ "key": "base_url", "value": "http://localhost:8080" },
+		{ "key": "token", "value": "" },
+		{ "key": "superadmin_token", "value": "" },
+		{ "key": "tenant_admin_token", "value": "" },
+		{ "key": "tenant_id", "value": "a0000000-0000-0000-0000-000000000001" },
+		{ "key": "office_id", "value": "b0000000-0000-0000-0000-000000000001" },
+		{ "key": "user_id", "value": "c0000000-0000-0000-0000-000000000001" }
 	]
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/faceattendance/go-api/internal/middleware"
@@ -540,3 +541,171 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		"employee": profileData,
 	})
 }
+
+type UpdateUserInput struct {
+	Name     string  `json:"name"`
+	Email    *string `json:"email"`
+	UserCode string  `json:"user_code"`
+	OfficeID *string `json:"office_id"`
+	Role     string  `json:"role"`
+	IsActive *bool   `json:"is_active"`
+	Password string  `json:"password"`
+}
+
+func (h *UserHandler) ListUsers(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	search := c.Query("search")
+	role := c.Query("role")
+
+	var officeUUID *uuid.UUID
+	if officeStr := c.Query("office_id"); officeStr != "" {
+		if parsed, err := uuid.Parse(officeStr); err == nil {
+			officeUUID = &parsed
+		}
+	}
+
+	var isActive *bool
+	if activeStr := c.Query("is_active"); activeStr != "" {
+		if val, err := strconv.ParseBool(activeStr); err == nil {
+			isActive = &val
+		}
+	}
+
+	result, err := h.userService.ListUsers(c.Request.Context(), tenantID, page, limit, search, officeUUID, role, isActive)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"total":   result.Total,
+		"page":    result.Page,
+		"limit":   result.Limit,
+		"data":    result.Users,
+	})
+}
+
+func (h *UserHandler) GetUser(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid user ID format"})
+		return
+	}
+
+	user, err := h.userService.GetUser(c.Request.Context(), tenantID, id)
+	if err != nil || user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "User not found"})
+		return
+	}
+
+	var tenantIDStr *string
+	if user.TenantID != nil {
+		s := user.TenantID.String()
+		tenantIDStr = &s
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"id":                 user.ID.String(),
+			"tenant_id":          tenantIDStr,
+			"office_id":          user.OfficeID,
+			"role":               user.Role,
+			"name":               user.Name,
+			"email":              user.Email,
+			"user_code":          user.UserCode,
+			"employee_code":      user.UserCode,
+			"is_active":          user.IsActive,
+			"is_enrolled":        user.FaceEmbedding != nil,
+			"face_registered_at": user.FaceRegisteredAt,
+			"created_at":         user.CreatedAt,
+		},
+	})
+}
+
+func (h *UserHandler) UpdateUser(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid user ID format"})
+		return
+	}
+
+	var req UpdateUserInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	var officeUUID *uuid.UUID
+	if req.OfficeID != nil && *req.OfficeID != "" {
+		if parsed, err := uuid.Parse(*req.OfficeID); err == nil {
+			officeUUID = &parsed
+		}
+	}
+
+	serviceReq := service.UpdateUserRequest{
+		Name:     req.Name,
+		Email:    req.Email,
+		UserCode: req.UserCode,
+		OfficeID: officeUUID,
+		Role:     req.Role,
+		IsActive: req.IsActive,
+		Password: req.Password,
+	}
+
+	updated, err := h.userService.UpdateUser(c.Request.Context(), tenantID, id, serviceReq)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	var tenantIDStr *string
+	if updated.TenantID != nil {
+		s := updated.TenantID.String()
+		tenantIDStr = &s
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "User updated successfully",
+		"data": gin.H{
+			"id":                 updated.ID.String(),
+			"tenant_id":          tenantIDStr,
+			"office_id":          updated.OfficeID,
+			"role":               updated.Role,
+			"name":               updated.Name,
+			"email":              updated.Email,
+			"user_code":          updated.UserCode,
+			"employee_code":      updated.UserCode,
+			"is_active":          updated.IsActive,
+			"is_enrolled":        updated.FaceEmbedding != nil,
+			"face_registered_at": updated.FaceRegisteredAt,
+		},
+	})
+}
+

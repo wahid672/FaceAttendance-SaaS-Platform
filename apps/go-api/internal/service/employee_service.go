@@ -50,11 +50,30 @@ type BulkDeleteResult struct {
 	DeletedIDs     []uuid.UUID `json:"deleted_ids"`
 }
 
+type UpdateUserRequest struct {
+	Name     string     `json:"name"`
+	Email    *string    `json:"email"`
+	UserCode string     `json:"user_code"`
+	OfficeID *uuid.UUID `json:"office_id"`
+	Role     string     `json:"role"`
+	IsActive *bool      `json:"is_active"`
+	Password string     `json:"password,omitempty"`
+}
+
+type UserListResult struct {
+	Total int           `json:"total"`
+	Page  int           `json:"page"`
+	Limit int           `json:"limit"`
+	Users []*model.User `json:"users"`
+}
+
 type UserService interface {
 	CreateUser(ctx context.Context, req CreateUserRequest) (*model.User, error)
 	CreateEmployee(ctx context.Context, req CreateEmployeeRequest) (*model.Employee, error)
 	BulkCreateUsers(ctx context.Context, tenantID uuid.UUID, requests []CreateUserRequest) (*BulkCreateResult, error)
 	ImportUsersCSV(ctx context.Context, tenantID uuid.UUID, csvReader io.Reader) (*BulkCreateResult, error)
+	ListUsers(ctx context.Context, tenantID uuid.UUID, page, limit int, search string, officeID *uuid.UUID, role string, isActive *bool) (*UserListResult, error)
+	UpdateUser(ctx context.Context, tenantID uuid.UUID, id uuid.UUID, req UpdateUserRequest) (*model.User, error)
 	DeleteUser(ctx context.Context, tenantID, callerUserID, targetUserID uuid.UUID) error
 	DeleteEmployee(ctx context.Context, tenantID, callerEmployeeID, targetEmployeeID uuid.UUID) error
 	BulkDeleteUsers(ctx context.Context, tenantID, callerUserID uuid.UUID, targetUserIDs []uuid.UUID) (*BulkDeleteResult, error)
@@ -436,3 +455,83 @@ func (s *employeeService) BulkDeleteUsers(ctx context.Context, tenantID, callerU
 
 	return result, nil
 }
+
+func (s *employeeService) ListUsers(ctx context.Context, tenantID uuid.UUID, page, limit int, search string, officeID *uuid.UUID, role string, isActive *bool) (*UserListResult, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+
+	users, total, err := s.employeeRepo.List(ctx, tenantID, limit, offset, search, officeID, role, isActive)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+
+	return &UserListResult{
+		Total: total,
+		Page:  page,
+		Limit: limit,
+		Users: users,
+	}, nil
+}
+
+func (s *employeeService) UpdateUser(ctx context.Context, tenantID uuid.UUID, id uuid.UUID, req UpdateUserRequest) (*model.User, error) {
+	user, err := s.employeeRepo.GetByID(ctx, id, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found or tenant mismatch")
+	}
+
+	if name := strings.TrimSpace(req.Name); name != "" {
+		user.Name = name
+	}
+	if code := strings.TrimSpace(req.UserCode); code != "" {
+		user.UserCode = code
+		user.EmployeeCode = code
+	}
+	if req.OfficeID != nil {
+		user.OfficeID = req.OfficeID
+	}
+	if role := strings.TrimSpace(req.Role); role != "" {
+		user.Role = role
+	}
+	if req.IsActive != nil {
+		user.IsActive = *req.IsActive
+	}
+	if req.Email != nil {
+		emailTrim := strings.ToLower(strings.TrimSpace(*req.Email))
+		if emailTrim != "" {
+			existing, _, err := s.employeeRepo.GetByEmail(ctx, emailTrim)
+			if err != nil {
+				return nil, err
+			}
+			if existing != nil && existing.ID != id {
+				return nil, errors.New("email is already registered by another user")
+			}
+			user.Email = &emailTrim
+		} else {
+			user.Email = nil
+		}
+	}
+	if len(req.Password) >= 6 {
+		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash password: %w", err)
+		}
+		user.PasswordHash = string(hash)
+	} else if len(req.Password) > 0 && len(req.Password) < 6 {
+		return nil, errors.New("password must be at least 6 characters")
+	}
+
+	if err := s.employeeRepo.Update(ctx, user); err != nil {
+		return nil, fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return user, nil
+}
+

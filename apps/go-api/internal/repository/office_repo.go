@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/faceattendance/go-api/internal/model"
 	"github.com/google/uuid"
@@ -13,6 +14,9 @@ import (
 type OfficeRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*model.Office, error)
 	GetByTenantID(ctx context.Context, tenantID uuid.UUID) ([]*model.Office, error)
+	Create(ctx context.Context, office *model.Office) error
+	Update(ctx context.Context, office *model.Office) error
+	Delete(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) error
 }
 
 type officeRepository struct {
@@ -47,6 +51,7 @@ func (r *officeRepository) GetByTenantID(ctx context.Context, tenantID uuid.UUID
 		SELECT id, tenant_id, name, latitude, longitude, radius_meters, created_at 
 		FROM offices 
 		WHERE tenant_id = $1
+		ORDER BY created_at ASC
 	`
 	rows, err := r.db.Query(ctx, query, tenantID)
 	if err != nil {
@@ -63,4 +68,55 @@ func (r *officeRepository) GetByTenantID(ctx context.Context, tenantID uuid.UUID
 		offices = append(offices, &o)
 	}
 	return offices, nil
+}
+
+func (r *officeRepository) Create(ctx context.Context, office *model.Office) error {
+	if office.ID == uuid.Nil {
+		office.ID = uuid.New()
+	}
+	if office.CreatedAt.IsZero() {
+		office.CreatedAt = time.Now()
+	}
+	if office.RadiusMeters <= 0 {
+		office.RadiusMeters = 50
+	}
+
+	query := `
+		INSERT INTO offices (id, tenant_id, name, latitude, longitude, radius_meters, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING created_at
+	`
+	return r.db.QueryRow(ctx, query,
+		office.ID, office.TenantID, office.Name, office.Latitude, office.Longitude, office.RadiusMeters, office.CreatedAt,
+	).Scan(&office.CreatedAt)
+}
+
+func (r *officeRepository) Update(ctx context.Context, office *model.Office) error {
+	query := `
+		UPDATE offices 
+		SET name = $1, latitude = $2, longitude = $3, radius_meters = $4
+		WHERE id = $5 AND tenant_id = $6
+	`
+	cmdTag, err := r.db.Exec(ctx, query,
+		office.Name, office.Latitude, office.Longitude, office.RadiusMeters, office.ID, office.TenantID,
+	)
+	if err != nil {
+		return err
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return errors.New("office not found or tenant mismatch")
+	}
+	return nil
+}
+
+func (r *officeRepository) Delete(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) error {
+	query := `DELETE FROM offices WHERE id = $1 AND tenant_id = $2`
+	cmdTag, err := r.db.Exec(ctx, query, id, tenantID)
+	if err != nil {
+		return err
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return errors.New("office not found or tenant mismatch")
+	}
+	return nil
 }

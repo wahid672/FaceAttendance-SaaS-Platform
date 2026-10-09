@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/faceattendance/go-api/internal/model"
@@ -16,10 +17,12 @@ import (
 type EmployeeRepository interface {
 	Create(ctx context.Context, employee *model.Employee) error
 	BulkCreate(ctx context.Context, employees []*model.Employee) ([]*model.Employee, error)
+	Update(ctx context.Context, user *model.User) error
 	Delete(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) error
 	BulkDelete(ctx context.Context, ids []uuid.UUID, tenantID uuid.UUID) (int64, error)
 	GetByID(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) (*model.Employee, error)
 	GetByEmail(ctx context.Context, email string) (*model.Employee, *model.Tenant, error)
+	List(ctx context.Context, tenantID uuid.UUID, limit, offset int, search string, officeID *uuid.UUID, role string, isActive *bool) ([]*model.User, int, error)
 	UpdateFaceEmbedding(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) error
 	CalculateCosineSimilarity(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) (float64, error)
 }
@@ -111,6 +114,138 @@ func (r *employeeRepository) GetByEmail(ctx context.Context, email string) (*mod
 	return &e, tenant, nil
 }
 
+func (r *employeeRepository) List(ctx context.Context, tenantID uuid.UUID, limit, offset int, search string, officeID *uuid.UUID, role string, isActive *bool) ([]*model.User, int, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	whereClauses := []string{"($1 = '00000000-0000-0000-0000-000000000000'::uuid OR tenant_id = $1)"}
+	args := []interface{}{tenantID}
+	argIdx := 2
+
+	if search = strings.TrimSpace(search); search != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("(name ILIKE $%d OR user_code ILIKE $%d OR COALESCE(email, '') ILIKE $%d)", argIdx, argIdx, argIdx))
+		args = append(args, "%"+search+"%")
+		argIdx++
+	}
+
+	if officeID != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("office_id = $%d", argIdx))
+		args = append(args, *officeID)
+		argIdx++
+	}
+
+	if role = strings.TrimSpace(role); role != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("role = $%d", argIdx))
+		args = append(args, role)
+		argIdx++
+	}
+
+	if isActive != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("is_active = $%d", argIdx))
+		args = append(args, *isActive)
+		argIdx++
+	}
+
+	whereSQL := strings.Join(whereClauses, " AND ")
+
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM users WHERE %s", whereSQL)
+	var total int
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	listQuery := fmt.Sprintf(`
+		SELECT id, tenant_id, office_id, role, name, email, password_hash, user_code,
+		       face_embedding::text, face_registered_at, is_active, created_at
+		FROM users
+		WHERE %s
+		ORDER BY created_at DESC
+		LIMIT $%d OFFSET $%d
+	`, whereSQL, argIdx, argIdx+1)
+
+	args = append(args, limit, offset)
+	rows, err := r.db.Query(ctx, listQuery, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var users []*model.User
+	for rows.Next() {
+		var u model.User
+		var embeddingStr *string
+		var faceRegAt *time.Time
+		if err := rows.Scan(
+			&u.ID, &u.TenantID, &u.OfficeID, &u.Role, &u.Name, &u.Email, &u.PasswordHash, &u.UserCode,
+			&embeddingStr, &faceRegAt, &u.IsActive, &u.CreatedAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		u.EmployeeCode = u.UserCode
+		u.FaceEmbedding = embeddingStr
+		u.FaceRegisteredAt = faceRegAt
+		users = append(users, &u)
+	}
+
+	return users, total, nil
+}
+
+func (r *employeeRepository) Update(ctx context.Context, user *model.User) error {
+	var query string
+	var err error
+
+	code := user.UserCode
+	if code == "" {
+		code = user.EmployeeCode
+	}
+
+	if user.PasswordHash != "" {
+		query = `
+			UPDATE users
+			SET name = $1, email = $2, user_code = $3, office_id = $4, is_active = $5, role = $6, password_hash = $7
+			WHERE id = $8 AND ($9 = '00000000-0000-0000-0000-000000000000'::uuid OR tenant_id = $9)
+		`
+		var tenantID uuid.UUID
+		if user.TenantID != nil {
+			tenantID = *user.TenantID
+		}
+		cmdTag, execErr := r.db.Exec(ctx, query,
+			user.Name, user.Email, code, user.OfficeID, user.IsActive, user.Role, user.PasswordHash, user.ID, tenantID,
+		)
+		if execErr != nil {
+			return execErr
+		}
+		if cmdTag.RowsAffected() == 0 {
+			return errors.New("user not found or tenant mismatch")
+		}
+		return nil
+	}
+
+	query = `
+		UPDATE users
+		SET name = $1, email = $2, user_code = $3, office_id = $4, is_active = $5, role = $6
+		WHERE id = $7 AND ($8 = '00000000-0000-0000-0000-000000000000'::uuid OR tenant_id = $8)
+	`
+	var tenantID uuid.UUID
+	if user.TenantID != nil {
+		tenantID = *user.TenantID
+	}
+	cmdTag, execErr := r.db.Exec(ctx, query,
+		user.Name, user.Email, code, user.OfficeID, user.IsActive, user.Role, user.ID, tenantID,
+	)
+	if execErr != nil {
+		return execErr
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return errors.New("user not found or tenant mismatch")
+	}
+	return err
+}
+
 func (r *employeeRepository) UpdateFaceEmbedding(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) error {
 	query := `
 		UPDATE users
@@ -129,8 +264,6 @@ func (r *employeeRepository) UpdateFaceEmbedding(ctx context.Context, id uuid.UU
 }
 
 func (r *employeeRepository) CalculateCosineSimilarity(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) (float64, error) {
-	// Cosine distance in pgvector is calculated using <=> operator
-	// Cosine similarity = 1 - (face_embedding <=> query_vector)
 	query := `
 		SELECT (1.0 - (face_embedding <=> $1::vector)) AS similarity
 		FROM users

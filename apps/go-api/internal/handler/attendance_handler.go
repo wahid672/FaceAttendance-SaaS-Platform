@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/faceattendance/go-api/internal/middleware"
 	"github.com/faceattendance/go-api/internal/service"
@@ -170,3 +171,86 @@ func (h *AttendanceHandler) GetHistory(c *gin.Context) {
 		"data":    logs,
 	})
 }
+
+func (h *AttendanceHandler) GetLogs(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	var startDate *time.Time
+	if startStr := c.Query("start_date"); startStr != "" {
+		if t, err := time.Parse("2006-01-02", startStr); err == nil {
+			startDate = &t
+		}
+	}
+
+	var endDate *time.Time
+	if endStr := c.Query("end_date"); endStr != "" {
+		if t, err := time.Parse("2006-01-02", endStr); err == nil {
+			endDay := t.Add(24*time.Hour - time.Nanosecond)
+			endDate = &endDay
+		}
+	}
+
+	var userUUID *uuid.UUID
+	if userStr := c.Query("user_id"); userStr != "" {
+		if parsed, err := uuid.Parse(userStr); err == nil {
+			userUUID = &parsed
+		}
+	}
+
+	var isValid *bool
+	if validStr := c.Query("is_valid"); validStr != "" {
+		if val, err := strconv.ParseBool(validStr); err == nil {
+			isValid = &val
+		}
+	}
+
+	result, err := h.attendanceService.ListLogs(c.Request.Context(), tenantID, page, limit, startDate, endDate, userUUID, isValid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"total":   result.Total,
+		"page":    result.Page,
+		"limit":   result.Limit,
+		"data":    result.Logs,
+	})
+}
+
+func (h *AttendanceHandler) GetSummary(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	targetDate := time.Now()
+	if dateStr := c.Query("date"); dateStr != "" {
+		if t, err := time.Parse("2006-01-02", dateStr); err == nil {
+			targetDate = t
+		}
+	}
+
+	summary, err := h.attendanceService.GetSummary(c.Request.Context(), tenantID, targetDate)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    summary,
+	})
+}
+

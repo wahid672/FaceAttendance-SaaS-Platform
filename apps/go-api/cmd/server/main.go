@@ -21,29 +21,25 @@ import (
 )
 
 func main() {
+	// Load application configuration
 	cfg := config.Load()
 
-	log.Printf("[INFO] Starting FaceAttendance Go API on port %s...", cfg.Port)
-	log.Printf("[INFO] AI Engine URL: %s", cfg.AIEngineURL)
-	log.Printf("[INFO] Similarity threshold: %.2f", cfg.SimilarityThreshold)
-
-	// Context for database connection and server shutdown
+	// Initialize PostgreSQL connection pool with pgvector support
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Initialize PostgreSQL Connection Pool
 	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("[FATAL] Failed to parse database config: %v", err)
+		log.Fatalf("[FATAL] Unable to parse DATABASE_URL: %v", err)
 	}
-	poolConfig.MaxConns = 25
+	poolConfig.MaxConns = 30
 	poolConfig.MinConns = 5
 	poolConfig.MaxConnLifetime = 1 * time.Hour
-	poolConfig.MaxConnIdleTime = 15 * time.Minute
+	poolConfig.MaxConnIdleTime = 30 * time.Minute
 
 	dbPool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
-		log.Fatalf("[FATAL] Unable to create database connection pool: %v", err)
+		log.Fatalf("[FATAL] Unable to connect to database pool: %v", err)
 	}
 	defer dbPool.Close()
 
@@ -55,8 +51,8 @@ func main() {
 	}
 
 	// Initialize Repositories
+	settingsRepo := repository.NewPlatformSettingsRepository(dbPool)
 	tenantRepo := repository.NewTenantRepository(dbPool)
-	_ = tenantRepo // preserved for tenant management endpoints
 	officeRepo := repository.NewOfficeRepository(dbPool)
 	employeeRepo := repository.NewEmployeeRepository(dbPool)
 	attendanceRepo := repository.NewAttendanceRepository(dbPool)
@@ -64,11 +60,15 @@ func main() {
 	// Initialize AI Client and Services
 	aiClient := service.NewAIEngineClient(cfg.AIEngineURL)
 	authService := service.NewAuthService(cfg, employeeRepo)
+	platformService := service.NewPlatformService(settingsRepo, tenantRepo, employeeRepo)
+	officeService := service.NewOfficeService(officeRepo)
 	employeeService := service.NewEmployeeService(employeeRepo, aiClient)
 	attendanceService := service.NewAttendanceService(cfg, employeeRepo, officeRepo, attendanceRepo, aiClient)
 
 	// Initialize Handlers
 	authHandler := handler.NewAuthHandler(authService)
+	platformHandler := handler.NewPlatformHandler(platformService)
+	officeHandler := handler.NewOfficeHandler(officeService)
 	employeeHandler := handler.NewEmployeeHandler(employeeService)
 	attendanceHandler := handler.NewAttendanceHandler(attendanceService)
 
@@ -110,45 +110,85 @@ func main() {
 	// API Routes (v1)
 	apiV1 := router.Group("/api/v1")
 	{
+		// Public Platform Branding / Settings (Untuk Tampilan Login, Logo, Favicon)
+		apiV1.GET("/platform/settings", platformHandler.GetSettings)
+
 		// Public Auth routes
 		authGroup := apiV1.Group("/auth")
 		{
 			authGroup.POST("/login", authHandler.Login)
 		}
 
-		// Protected Employee & Attendance routes
+		// Protected routes (Perlu Bearer Token JWT)
 		protected := apiV1.Group("")
 		protected.Use(middleware.AuthMiddleware(authService))
 		{
-			// Users endpoints (Mencakup Siswa, Santri, Guru, Karyawan, Pegawai)
+			// ==========================================
+			// 1. Super Admin Modul (Platform & Tenant Management)
+			// ==========================================
+			superAdmin := protected.Group("/superadmin")
+			superAdmin.Use(middleware.RequireSuperAdmin())
+			{
+				superAdmin.PUT("/settings", platformHandler.UpdateSettings)
+				superAdmin.GET("/tenants", platformHandler.ListTenants)
+				superAdmin.POST("/tenants", platformHandler.CreateTenant)
+				superAdmin.GET("/tenants/:id", platformHandler.GetTenant)
+				superAdmin.PUT("/tenants/:id", platformHandler.UpdateTenant)
+			}
+
+			// ==========================================
+			// 2. Office Geofencing Modul (Cabang / Kampus)
+			// ==========================================
+			offices := protected.Group("/offices")
+			{
+				offices.GET("", officeHandler.ListOffices)
+				offices.POST("", officeHandler.CreateOffice)
+				offices.GET("/:id", officeHandler.GetOffice)
+				offices.PUT("/:id", officeHandler.UpdateOffice)
+				offices.DELETE("/:id", officeHandler.DeleteOffice)
+			}
+
+			// ==========================================
+			// 3. Users endpoints (Mencakup Siswa, Santri, Guru, Karyawan, Pegawai)
+			// ==========================================
 			users := protected.Group("/users")
 			{
+				users.GET("", employeeHandler.ListUsers)
+				users.GET("/me", employeeHandler.GetProfile)
+				users.GET("/:id", employeeHandler.GetUser)
+				users.PUT("/:id", employeeHandler.UpdateUser)
 				users.POST("", employeeHandler.CreateUser)
 				users.POST("/bulk", employeeHandler.BulkCreateUsers)
 				users.POST("/import-csv", employeeHandler.ImportUsersCSV)
 				users.DELETE("/bulk", employeeHandler.BulkDeleteUsers)
 				users.DELETE("/:id", employeeHandler.DeleteUser)
-				users.GET("/me", employeeHandler.GetProfile)
 				users.POST("/enroll-face", employeeHandler.EnrollFace)
 			}
 
 			// Alias /employees untuk backward-compatibility
 			employees := protected.Group("/employees")
 			{
+				employees.GET("", employeeHandler.ListUsers)
+				employees.GET("/me", employeeHandler.GetProfile)
+				employees.GET("/:id", employeeHandler.GetUser)
+				employees.PUT("/:id", employeeHandler.UpdateUser)
 				employees.POST("", employeeHandler.CreateUser)
 				employees.POST("/bulk", employeeHandler.BulkCreateUsers)
 				employees.POST("/import-csv", employeeHandler.ImportUsersCSV)
 				employees.DELETE("/bulk", employeeHandler.BulkDeleteUsers)
 				employees.DELETE("/:id", employeeHandler.DeleteUser)
-				employees.GET("/me", employeeHandler.GetProfile)
 				employees.POST("/enroll-face", employeeHandler.EnrollFace)
 			}
 
-			// Attendance
+			// ==========================================
+			// 4. Attendance Modul (Check-In & Rekap Logs)
+			// ==========================================
 			attendance := protected.Group("/attendance")
 			{
 				attendance.POST("/check-in", attendanceHandler.CheckIn)
 				attendance.GET("/history", attendanceHandler.GetHistory)
+				attendance.GET("/logs", attendanceHandler.GetLogs)
+				attendance.GET("/summary", attendanceHandler.GetSummary)
 			}
 		}
 	}

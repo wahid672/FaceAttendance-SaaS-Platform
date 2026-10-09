@@ -34,9 +34,18 @@ type CheckInResult struct {
 	ValidationNotes []string             `json:"validation_notes,omitempty"`
 }
 
+type AttendanceLogsResult struct {
+	Total int                    `json:"total"`
+	Page  int                    `json:"page"`
+	Limit int                    `json:"limit"`
+	Logs  []*model.AttendanceLog `json:"logs"`
+}
+
 type AttendanceService interface {
 	CheckIn(ctx context.Context, req CheckInRequest) (*CheckInResult, error)
 	GetAttendanceHistory(ctx context.Context, employeeID uuid.UUID, limit int) ([]*model.AttendanceLog, error)
+	ListLogs(ctx context.Context, tenantID uuid.UUID, page, limit int, startDate, endDate *time.Time, userID *uuid.UUID, isValid *bool) (*AttendanceLogsResult, error)
+	GetSummary(ctx context.Context, tenantID uuid.UUID, targetDate time.Time) (*repository.AttendanceSummary, error)
 }
 
 type attendanceService struct {
@@ -169,3 +178,30 @@ func (s *attendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*C
 func (s *attendanceService) GetAttendanceHistory(ctx context.Context, employeeID uuid.UUID, limit int) ([]*model.AttendanceLog, error) {
 	return s.attendanceRepo.GetByEmployeeID(ctx, employeeID, limit)
 }
+
+func (s *attendanceService) ListLogs(ctx context.Context, tenantID uuid.UUID, page, limit int, startDate, endDate *time.Time, userID *uuid.UUID, isValid *bool) (*AttendanceLogsResult, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := (page - 1) * limit
+
+	logs, total, err := s.attendanceRepo.ListLogs(ctx, tenantID, limit, offset, startDate, endDate, userID, isValid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list attendance logs: %w", err)
+	}
+
+	return &AttendanceLogsResult{
+		Total: total,
+		Page:  page,
+		Limit: limit,
+		Logs:  logs,
+	}, nil
+}
+
+func (s *attendanceService) GetSummary(ctx context.Context, tenantID uuid.UUID, targetDate time.Time) (*repository.AttendanceSummary, error) {
+	return s.attendanceRepo.GetSummary(ctx, tenantID, targetDate)
+}
+

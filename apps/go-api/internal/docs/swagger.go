@@ -48,13 +48,13 @@ const swaggerJSON = `{
   "openapi": "3.0.3",
   "info": {
     "title": "FaceAttendance SaaS Go API",
-    "description": "High-Performance Go REST API microservice untuk Face Attendance SaaS Platform (Siswa, Santri, Pegawai, Karyawan) dengan PostgreSQL pgvector dan InsightFace AI Engine.",
+    "description": "Enterprise-grade Go REST API untuk Face Attendance SaaS Platform (Santri, Siswa, Guru, Pegawai, Karyawan) dengan pgvector Cosine Distance & InsightFace AI Engine.",
     "version": "1.0.0"
   },
   "servers": [
     {
       "url": "/",
-      "description": "Current Server"
+      "description": "Base Server"
     }
   ],
   "components": {
@@ -62,8 +62,7 @@ const swaggerJSON = `{
       "BearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Masukkan token JWT yang didapatkan dari /api/v1/auth/login"
+        "bearerFormat": "JWT"
       }
     },
     "schemas": {
@@ -71,46 +70,41 @@ const swaggerJSON = `{
         "type": "object",
         "required": ["email", "password"],
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "example": "wahidalimudin672@gmail.com"
-          },
-          "password": {
-            "type": "string",
-            "example": "Password123!"
-          }
+          "email": { "type": "string", "format": "email", "example": "wahidalimudin672@gmail.com" },
+          "password": { "type": "string", "example": "Password123!" }
+        }
+      },
+      "CreateTenantRequest": {
+        "type": "object",
+        "required": ["name", "subdomain", "admin_email", "admin_password"],
+        "properties": {
+          "name": { "type": "string", "example": "Pondok Pesantren Al-Hidayah" },
+          "subdomain": { "type": "string", "example": "alhidayah" },
+          "admin_name": { "type": "string", "example": "Ustadz Fauzan" },
+          "admin_email": { "type": "string", "format": "email", "example": "admin@alhidayah.ponpes.id" },
+          "admin_password": { "type": "string", "minLength": 6, "example": "Password123!" },
+          "admin_user_code": { "type": "string", "example": "ADM-001" }
+        }
+      },
+      "CreateOfficeRequest": {
+        "type": "object",
+        "required": ["name", "latitude", "longitude"],
+        "properties": {
+          "name": { "type": "string", "example": "Kampus Utama" },
+          "latitude": { "type": "number", "format": "double", "example": -6.2088 },
+          "longitude": { "type": "number", "format": "double", "example": 106.8456 },
+          "radius_meters": { "type": "integer", "example": 100 }
         }
       },
       "CreateUserRequest": {
         "type": "object",
-        "required": ["name", "email", "password"],
+        "required": ["name", "password"],
         "properties": {
-          "name": {
-            "type": "string",
-            "example": "Ahmad Fauzi"
-          },
-          "email": {
-            "type": "string",
-            "format": "email",
-            "example": "ahmad@sekolah.com"
-          },
-          "password": {
-            "type": "string",
-            "minLength": 6,
-            "example": "Password123!"
-          },
-          "user_code": {
-            "type": "string",
-            "example": "SISWA-001",
-            "description": "NIS / NIK / NIP / Kode Pegawai"
-          },
-          "office_id": {
-            "type": "string",
-            "format": "uuid",
-            "example": "b0000000-0000-0000-0000-000000000001",
-            "description": "Opsional: ID kantor penugasan geofence"
-          }
+          "name": { "type": "string", "example": "Ahmad Dahlan" },
+          "email": { "type": "string", "format": "email", "example": "ahmad@sekolah.sch.id", "description": "Opsional untuk siswa/santri" },
+          "password": { "type": "string", "minLength": 6, "example": "Password123!" },
+          "user_code": { "type": "string", "example": "SISWA-001", "description": "NIS / NISN / NIK / ID Santri" },
+          "office_id": { "type": "string", "format": "uuid", "example": "b0000000-0000-0000-0000-000000000001" }
         }
       },
       "BulkCreateUsersRequest": {
@@ -119,9 +113,7 @@ const swaggerJSON = `{
         "properties": {
           "users": {
             "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CreateUserRequest"
-            }
+            "items": { "$ref": "#/components/schemas/CreateUserRequest" }
           }
         }
       },
@@ -131,14 +123,8 @@ const swaggerJSON = `{
         "properties": {
           "user_ids": {
             "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "example": [
-              "c0000000-0000-0000-0000-000000000002",
-              "c0000000-0000-0000-0000-000000000003"
-            ]
+            "items": { "type": "string", "format": "uuid" },
+            "example": ["c0000000-0000-0000-0000-000000000002"]
           }
         }
       }
@@ -147,232 +133,234 @@ const swaggerJSON = `{
   "paths": {
     "/health": {
       "get": {
-        "tags": ["Health Check"],
-        "summary": "Pengecekan status kesehatan layanan",
-        "description": "Memeriksa status hidup Go API, koneksi pgvector database, dan AI Engine.",
-        "responses": {
-          "200": {
-            "description": "Status layanan OK / Degraded"
-          }
-        }
+        "tags": ["System"],
+        "summary": "Health check service, PostgreSQL pgvector, and AI Engine",
+        "responses": { "200": { "description": "Health status" } }
+      }
+    },
+    "/api/v1/platform/settings": {
+      "get": {
+        "tags": ["Platform Branding"],
+        "summary": "Get platform settings and branding (Public)",
+        "responses": { "200": { "description": "Platform settings" } }
       }
     },
     "/api/v1/auth/login": {
       "post": {
         "tags": ["Authentication"],
-        "summary": "Login Pengguna",
-        "description": "Verifikasi kredensial email & password dan menerbitkan JWT token.",
+        "summary": "User authentication (Super Admin, Tenant Admin, User)",
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
-            }
+            "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } }
           }
         },
-        "responses": {
-          "200": {
-            "description": "Login berhasil dan mengembalikan token"
-          },
-          "401": {
-            "description": "Email atau password salah"
+        "responses": { "200": { "description": "Token JWT and user profile" } }
+      }
+    },
+    "/api/v1/superadmin/settings": {
+      "put": {
+        "tags": ["Super Admin"],
+        "summary": "Update platform branding and configuration",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Settings updated" } }
+      }
+    },
+    "/api/v1/superadmin/tenants": {
+      "get": {
+        "tags": ["Super Admin"],
+        "summary": "List all tenants with pagination and search",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "List of tenants" } }
+      },
+      "post": {
+        "tags": ["Super Admin"],
+        "summary": "Create new tenant institution + initial tenant admin",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateTenantRequest" } }
           }
-        }
+        },
+        "responses": { "201": { "description": "Tenant created" } }
+      }
+    },
+    "/api/v1/superadmin/tenants/{id}": {
+      "get": {
+        "tags": ["Super Admin"],
+        "summary": "Get tenant detail",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Tenant detail" } }
+      },
+      "put": {
+        "tags": ["Super Admin"],
+        "summary": "Update tenant name, subdomain, or active status",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Tenant updated" } }
+      }
+    },
+    "/api/v1/offices": {
+      "get": {
+        "tags": ["Offices & Geofencing"],
+        "summary": "List all campus/offices for tenant",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "List of offices" } }
+      },
+      "post": {
+        "tags": ["Offices & Geofencing"],
+        "summary": "Create new campus/office geofencing location",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateOfficeRequest" } }
+          }
+        },
+        "responses": { "201": { "description": "Office created" } }
+      }
+    },
+    "/api/v1/offices/{id}": {
+      "get": {
+        "tags": ["Offices & Geofencing"],
+        "summary": "Get office detail",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Office detail" } }
+      },
+      "put": {
+        "tags": ["Offices & Geofencing"],
+        "summary": "Update office coordinates or radius",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Office updated" } }
+      },
+      "delete": {
+        "tags": ["Offices & Geofencing"],
+        "summary": "Delete office location",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "Office deleted" } }
       }
     },
     "/api/v1/users": {
-      "post": {
-        "tags": ["Users"],
-        "summary": "Tambah Pengguna Baru (Single)",
-        "description": "Menambahkan data pengguna (siswa/santri/karyawan) baru di bawah tenant yang sama. Password di-hash dengan bcrypt.",
-        "security": [
-          {
-            "BearerAuth": []
-          }
+      "get": {
+        "tags": ["Users Management"],
+        "summary": "List users (students/staff) with pagination and filters",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "office_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "role", "in": "query", "schema": { "type": "string" } },
+          { "name": "is_active", "in": "query", "schema": { "type": "boolean" } }
         ],
+        "responses": { "200": { "description": "List of users" } }
+      },
+      "post": {
+        "tags": ["Users Management"],
+        "summary": "Create single user",
+        "security": [{ "BearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateUserRequest"
-              }
-            }
+            "application/json": { "schema": { "$ref": "#/components/schemas/CreateUserRequest" } }
           }
         },
-        "responses": {
-          "201": {
-            "description": "User berhasil dibuat"
-          },
-          "400": {
-            "description": "Validasi gagal / email sudah terdaftar"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
+        "responses": { "201": { "description": "User created" } }
+      }
+    },
+    "/api/v1/users/{id}": {
+      "get": {
+        "tags": ["Users Management"],
+        "summary": "Get user detail",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "User detail" } }
+      },
+      "put": {
+        "tags": ["Users Management"],
+        "summary": "Update user data",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "User updated" } }
+      },
+      "delete": {
+        "tags": ["Users Management"],
+        "summary": "Delete single user",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": { "200": { "description": "User deleted" } }
       }
     },
     "/api/v1/users/bulk": {
       "post": {
-        "tags": ["Users"],
-        "summary": "Bulk Create Users (Upload Massal via JSON)",
-        "description": "Menambahkan banyak pengguna sekaligus melalui JSON array atau wrapper { users: [...] } dalam transaksi database.",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
+        "tags": ["Users Management"],
+        "summary": "Bulk create users via JSON",
+        "security": [{ "BearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BulkCreateUsersRequest"
-              }
-            }
+            "application/json": { "schema": { "$ref": "#/components/schemas/BulkCreateUsersRequest" } }
           }
         },
-        "responses": {
-          "201": {
-            "description": "Proses bulk insert berhasil"
-          },
-          "400": {
-            "description": "Semua data gagal divalidasi"
-          }
-        }
+        "responses": { "201": { "description": "Bulk create completed" } }
       },
       "delete": {
-        "tags": ["Users"],
-        "summary": "Bulk Delete Users (Hapus Massal)",
-        "description": "Menghapus banyak akun pengguna sekaligus berdasarkan daftar UUID. Akun diri sendiri otomatis dilewati/dilindungi.",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
+        "tags": ["Users Management"],
+        "summary": "Bulk delete users by IDs",
+        "security": [{ "BearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BulkDeleteUsersRequest"
-              }
-            }
+            "application/json": { "schema": { "$ref": "#/components/schemas/BulkDeleteUsersRequest" } }
           }
         },
-        "responses": {
-          "200": {
-            "description": "Bulk delete selesai dieksekusi"
-          }
-        }
+        "responses": { "200": { "description": "Bulk delete completed" } }
       }
     },
     "/api/v1/users/import-csv": {
       "post": {
-        "tags": ["Users"],
-        "summary": "Import Users via CSV (Upload Massal File)",
-        "description": "Import data pengguna massal dari file .csv (header: name, email, password, user_code, office_id).",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
+        "tags": ["Users Management"],
+        "summary": "Import users via CSV file upload",
+        "security": [{ "BearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["file"],
                 "properties": {
-                  "file": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "File CSV daftar user"
-                  }
+                  "file": { "type": "string", "format": "binary", "description": "CSV file (name,email,password,user_code,office_id)" }
                 }
               }
             }
           }
         },
-        "responses": {
-          "200": {
-            "description": "Hasil pemrosesan file CSV berhasil"
-          },
-          "400": {
-            "description": "Format file tidak valid atau data gagal diproses"
-          }
-        }
+        "responses": { "201": { "description": "Import completed" } }
       }
     },
     "/api/v1/users/me": {
       "get": {
-        "tags": ["Users"],
-        "summary": "Profil Saya",
-        "description": "Mengambil data profil pengguna yang saat ini sedang login.",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Data profil ditemukan"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      }
-    },
-    "/api/v1/users/{id}": {
-      "delete": {
-        "tags": ["Users"],
-        "summary": "Hapus Pengguna (Single)",
-        "description": "Menghapus akun pengguna berdasarkan ID. Gagal jika mencoba menghapus akun diri sendiri.",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "UUID pengguna yang ingin dihapus",
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Pengguna berhasil dihapus"
-          },
-          "400": {
-            "description": "Gagal: Tidak dapat menghapus akun diri sendiri"
-          },
-          "404": {
-            "description": "Pengguna tidak ditemukan"
-          }
-        }
+        "tags": ["Users Management"],
+        "summary": "Get caller profile",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Current user profile" } }
       }
     },
     "/api/v1/users/enroll-face": {
       "post": {
-        "tags": ["Users"],
-        "summary": "Enroll Master Vector Wajah",
-        "description": "Upload 3-5 foto wajah master untuk diekstraksi menjadi embedding 512-dimensi dan disimpan ke pgvector.",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
+        "tags": ["Users Management"],
+        "summary": "Register master face photos for AI recognition",
+        "security": [{ "BearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -380,136 +368,94 @@ const swaggerJSON = `{
               "schema": {
                 "type": "object",
                 "properties": {
-                  "images": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "format": "binary"
-                    },
-                    "description": "File foto sampel wajah (3-5 foto)"
-                  },
-                  "user_id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "description": "Opsional: Jika admin mendaftarkan wajah pengguna lain"
-                  }
+                  "images": { "type": "array", "items": { "type": "string", "format": "binary" }, "description": "3-5 selfie photos" },
+                  "user_id": { "type": "string", "format": "uuid", "description": "Target user ID (admin only)" }
                 }
               }
             }
           }
         },
-        "responses": {
-          "200": {
-            "description": "Wajah berhasil didaftarkan"
-          },
-          "400": {
-            "description": "Foto tidak valid atau wajah tidak terdeteksi"
-          }
-        }
+        "responses": { "200": { "description": "Face registered" } }
       }
     },
     "/api/v1/attendance/check-in": {
       "post": {
         "tags": ["Attendance"],
-        "summary": "Presensi Masuk / Pulang (Check-In)",
-        "description": "Verifikasi presensi berbasis Geofence dan Face Match Cosine Similarity (pgvector).",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
+        "summary": "Perform face recognition check-in with GPS validation",
+        "security": [{ "BearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": ["image", "latitude", "longitude"],
+                "required": ["image", "latitude", "longitude", "device_id"],
                 "properties": {
-                  "image": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "Foto selfie saat absensi"
-                  },
-                  "latitude": {
-                    "type": "string",
-                    "example": "-6.2088",
-                    "description": "Koordinat latitude GPS"
-                  },
-                  "longitude": {
-                    "type": "string",
-                    "example": "106.8456",
-                    "description": "Koordinat longitude GPS"
-                  },
-                  "attendance_type": {
-                    "type": "string",
-                    "enum": ["IN", "OUT"],
-                    "default": "IN"
-                  },
-                  "device_id": {
-                    "type": "string",
-                    "example": "device-uuid-123"
-                  }
+                  "image": { "type": "string", "format": "binary" },
+                  "latitude": { "type": "number", "format": "double" },
+                  "longitude": { "type": "number", "format": "double" },
+                  "device_id": { "type": "string" },
+                  "type": { "type": "string", "enum": ["IN", "OUT"], "default": "IN" }
                 }
               }
             }
           }
         },
-        "responses": {
-          "200": {
-            "description": "Presensi terverifikasi dan tercatat"
-          },
-          "400": {
-            "description": "Presensi ditolak (diluar radius atau wajah tidak cocok)"
-          }
-        }
+        "responses": { "200": { "description": "Attendance recorded" } }
       }
     },
     "/api/v1/attendance/history": {
       "get": {
         "tags": ["Attendance"],
-        "summary": "Riwayat Presensi",
-        "description": "Mengambil log transaksi presensi milik user yang login.",
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
+        "summary": "Get personal attendance history",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } }],
+        "responses": { "200": { "description": "Personal attendance history" } }
+      }
+    },
+    "/api/v1/attendance/logs": {
+      "get": {
+        "tags": ["Attendance"],
+        "summary": "List all attendance logs for tenant (Admin)",
+        "security": [{ "BearerAuth": [] }],
         "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "default": 20
-            },
-            "description": "Batas jumlah data"
-          }
+          { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 20 } },
+          { "name": "start_date", "in": "query", "schema": { "type": "string", "format": "date", "example": "2026-10-01" } },
+          { "name": "end_date", "in": "query", "schema": { "type": "string", "format": "date", "example": "2026-10-09" } },
+          { "name": "user_id", "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "is_valid", "in": "query", "schema": { "type": "boolean" } }
         ],
-        "responses": {
-          "200": {
-            "description": "Daftar riwayat presensi"
-          }
-        }
+        "responses": { "200": { "description": "Attendance logs" } }
+      }
+    },
+    "/api/v1/attendance/summary": {
+      "get": {
+        "tags": ["Attendance"],
+        "summary": "Get daily dashboard attendance summary statistics",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "date", "in": "query", "schema": { "type": "string", "format": "date", "example": "2026-10-09" } }
+        ],
+        "responses": { "200": { "description": "Summary statistics" } }
       }
     }
   }
 }`
 
 func RegisterSwaggerRoutes(router *gin.Engine) {
-	docsGroup := router.Group("/docs")
-	{
-		docsGroup.GET("", func(c *gin.Context) {
-			c.Header("Content-Type", "text/html; charset=utf-8")
-			c.String(http.StatusOK, swaggerUIHTML)
-		})
-		docsGroup.GET("/", func(c *gin.Context) {
-			c.Header("Content-Type", "text/html; charset=utf-8")
-			c.String(http.StatusOK, swaggerUIHTML)
-		})
-		docsGroup.GET("/swagger.json", func(c *gin.Context) {
-			c.Header("Content-Type", "application/json; charset=utf-8")
-			c.String(http.StatusOK, swaggerJSON)
-		})
-	}
+	router.GET("/docs", func(c *gin.Context) {
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(http.StatusOK, swaggerUIHTML)
+	})
+
+	router.GET("/docs/", func(c *gin.Context) {
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(http.StatusOK, swaggerUIHTML)
+	})
+
+	router.GET("/docs/swagger.json", func(c *gin.Context) {
+		c.Header("Content-Type", "application/json; charset=utf-8")
+		c.String(http.StatusOK, swaggerJSON)
+	})
 }
