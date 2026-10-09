@@ -88,8 +88,8 @@ Melakukan verifikasi kredensial email & password employee multi-tenant.
 
 ```json
 {
-  "email": "budi@techcorp.com",
-  "password": "password123"
+  "email": "wahidalimudin672@gmail.com",
+  "password": "Password123!"
 }
 ```
 
@@ -98,8 +98,8 @@ Melakukan verifikasi kredensial email & password employee multi-tenant.
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "budi@techcorp.com",
-    "password": "password123"
+    "email": "wahidalimudin672@gmail.com",
+    "password": "Password123!"
   }'
 ```
 
@@ -109,17 +109,17 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
   "success": true,
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "employee": {
-    "id": "c56a4180-65aa-42ec-a945-5fd21dec0538",
-    "tenant_id": "e02b740e-7c57-4ea2-a164-97217db52f14",
-    "office_id": "3a726bd7-4999-4d69-bb11-c913501a3ca5",
-    "name": "Budi Santoso",
-    "email": "budi@techcorp.com",
-    "employee_code": "EMP001",
+    "id": "c0000000-0000-0000-0000-000000000001",
+    "tenant_id": "a0000000-0000-0000-0000-000000000001",
+    "office_id": "b0000000-0000-0000-0000-000000000001",
+    "name": "Wahid Alimudin",
+    "email": "wahidalimudin672@gmail.com",
+    "employee_code": "EMP-001",
     "is_active": true,
-    "is_enrolled": true
+    "is_enrolled": false
   },
   "tenant": {
-    "id": "e02b740e-7c57-4ea2-a164-97217db52f14",
+    "id": "a0000000-0000-0000-0000-000000000001",
     "name": "TechCorp Indonesia",
     "subdomain": "techcorp"
   }
@@ -378,3 +378,26 @@ if (pm.response.code === 200) {
 }
 ```
 Sehingga Anda **tidak perlu meng-copy token secara manual**. Request lain (`/me`, `/enroll-face`, `/check-in`, `/history`) langsung menggunakan token tersebut via `{{token}}`.
+
+---
+
+## 5. Inisialisasi Database & Kredensial Awal (db-init.sh)
+
+Tersedia script otomatisasi inisialisasi database dan migrasi schema di:
+📁 **`apps/go-api/db-init.sh`**
+
+### Cara Menjalankan Script Migrasi:
+```bash
+cd apps/go-api
+chmod +x db-init.sh
+./db-init.sh
+```
+> Script akan otomatis mendeteksi apakah PostgreSQL berjalan di dalam Docker container (`faceattendance-postgres`) atau PostgreSQL lokal via `psql`.
+
+### Akun Login Awal Hasil Inisialisasi (Seed):
+- **Email**: `wahidalimudin672@gmail.com`
+- **Password**: `Password123!`
+- **Nama Pegawai**: `Wahid Alimudin`
+- **Role / Employee Code**: `EMP-001`
+- **Status**: Aktif (`is_active: true`)
+

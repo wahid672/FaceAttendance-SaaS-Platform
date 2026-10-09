@@ -10,6 +10,7 @@ services:
     volumes:
       - pgvector_data:/var/lib/postgresql/data
       - ./migrations/000001_init_schema.up.sql:/docker-entrypoint-initdb.d/01_init_schema.sql:ro
+      - ./migrations/000002_seed_initial_user.up.sql:/docker-entrypoint-initdb.d/02_seed_initial_user.sql:ro
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:

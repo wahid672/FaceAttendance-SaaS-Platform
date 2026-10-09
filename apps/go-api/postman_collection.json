@@ -89,7 +89,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"budi@techcorp.com\",\n    \"password\": \"password123\"\n}"
+							"raw": "{\n    \"email\": \"wahidalimudin672@gmail.com\",\n    \"password\": \"Password123!\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/auth/login",
@@ -118,7 +118,7 @@
 								],
 								"body": {
 									"mode": "raw",
-									"raw": "{\n    \"email\": \"budi@techcorp.com\",\n    \"password\": \"password123\"\n}"
+									"raw": "{\n    \"email\": \"wahidalimudin672@gmail.com\",\n    \"password\": \"Password123!\"\n}"
 								},
 								"url": {
 									"raw": "{{base_url}}/api/v1/auth/login",
@@ -143,7 +143,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"success\": true,\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"employee\": {\n        \"id\": \"c56a4180-65aa-42ec-a945-5fd21dec0538\",\n        \"tenant_id\": \"e02b740e-7c57-4ea2-a164-97217db52f14\",\n        \"office_id\": \"3a726bd7-4999-4d69-bb11-c913501a3ca5\",\n        \"name\": \"Budi Santoso\",\n        \"email\": \"budi@techcorp.com\",\n        \"employee_code\": \"EMP001\",\n        \"is_active\": true,\n        \"is_enrolled\": true\n    },\n    \"tenant\": {\n        \"id\": \"e02b740e-7c57-4ea2-a164-97217db52f14\",\n        \"name\": \"TechCorp Indonesia\",\n        \"subdomain\": \"techcorp\"\n    }\n}"
+							"body": "{\n    \"success\": true,\n    \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"employee\": {\n        \"id\": \"c0000000-0000-0000-0000-000000000001\",\n        \"tenant_id\": \"a0000000-0000-0000-0000-000000000001\",\n        \"office_id\": \"b0000000-0000-0000-0000-000000000001\",\n        \"name\": \"Wahid Alimudin\",\n        \"email\": \"wahidalimudin672@gmail.com\",\n        \"employee_code\": \"EMP-001\",\n        \"is_active\": true,\n        \"is_enrolled\": false\n    },\n    \"tenant\": {\n        \"id\": \"a0000000-0000-0000-0000-000000000001\",\n        \"name\": \"TechCorp Indonesia\",\n        \"subdomain\": \"techcorp\"\n    }\n}"
 						}
 					]
 				}
