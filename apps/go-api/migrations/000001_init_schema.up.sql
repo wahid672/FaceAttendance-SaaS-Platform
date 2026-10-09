@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS users (
     office_id UUID REFERENCES offices(id) ON DELETE SET NULL, -- Nullable
     role VARCHAR(30) NOT NULL DEFAULT 'user',                 -- 'superadmin', 'tenant_admin', 'user'
     name VARCHAR(150) NOT NULL,
-    email VARCHAR(150),                                      -- Nullable, hanya wajib untuk Admin
+    email VARCHAR(150) UNIQUE,                               -- Nullable, hanya wajib untuk Admin (PostgreSQL UNIQUE allows multiple NULLs)
     password_hash VARCHAR(255) NOT NULL,
     user_code VARCHAR(50) NOT NULL,                          -- NIS / NISN / NIK / ID Unik
     face_embedding vector(512),                              -- Master Vector AI ArcFace (512-dim)
@@ -62,8 +62,14 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Unique index email (hanya untuk email yang tidak NULL)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email) WHERE email IS NOT NULL;
+-- Pastikan constraint UNIQUE email terpasang jika tabel users sudah dibuat sebelumnya
+DO $$
+BEGIN
+    DROP INDEX IF EXISTS idx_users_email_unique;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_email_key' OR conname = 'users_email_unique') THEN
+        ALTER TABLE users ADD CONSTRAINT users_email_key UNIQUE (email);
+    END IF;
+END $$;
 
 -- Unique user_code per tenant (user biasa)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_code_unique ON users(tenant_id, user_code) WHERE tenant_id IS NOT NULL;

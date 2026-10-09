@@ -6,6 +6,15 @@
 --              Password: Password123!
 -- ==========================================================
 
+-- 0. Pastikan constraint UNIQUE email terpasang agar ON CONFLICT (email) bekerja
+DO $$
+BEGIN
+    DROP INDEX IF EXISTS idx_users_email_unique;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_email_key' OR conname = 'users_email_unique') THEN
+        ALTER TABLE users ADD CONSTRAINT users_email_key UNIQUE (email);
+    END IF;
+END $$;
+
 -- 1. Default Platform Settings (Branding Platform SaaS)
 INSERT INTO platform_settings (
     id,
@@ -28,7 +37,34 @@ ON CONFLICT (id) DO UPDATE SET
     app_name = EXCLUDED.app_name,
     company_name = EXCLUDED.company_name;
 
--- 2. Super Admin (Global SaaS Owner)
+-- 2. Initial Demo Tenant (Lembaga / Pondok Pesantren Demo)
+INSERT INTO tenants (id, name, subdomain, is_active)
+VALUES (
+    'a0000000-0000-0000-0000-000000000001',
+    'Pondok Pesantren Al-Hidayah Demo',
+    'alhidayah',
+    true
+)
+ON CONFLICT (subdomain) DO UPDATE SET
+    is_active = true;
+
+-- 3. Initial Demo Office (Kampus / Gedung Utama)
+INSERT INTO offices (id, tenant_id, name, latitude, longitude, radius_meters)
+VALUES (
+    'b0000000-0000-0000-0000-000000000001',
+    'a0000000-0000-0000-0000-000000000001',
+    'Kampus Utama Pusat',
+    -6.208800,
+    106.845600,
+    100
+)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    latitude = EXCLUDED.latitude,
+    longitude = EXCLUDED.longitude,
+    radius_meters = EXCLUDED.radius_meters;
+
+-- 4. Super Admin (Global SaaS Owner)
 -- Email: wahidalimudin672@gmail.com
 -- Password: Password123!
 -- Bcrypt Hash: $2a$10$jUNN.tPJ.rPU9lkAuyFFZ.ygSOfC7TqlVn/Z9XOBVWlTEI0GIC68i
@@ -58,33 +94,6 @@ ON CONFLICT (email) DO UPDATE SET
     password_hash = EXCLUDED.password_hash,
     name = EXCLUDED.name,
     is_active = true;
-
--- 3. Initial Demo Tenant (Lembaga / Pondok Pesantren Demo)
-INSERT INTO tenants (id, name, subdomain, is_active)
-VALUES (
-    'a0000000-0000-0000-0000-000000000001',
-    'Pondok Pesantren Al-Hidayah Demo',
-    'alhidayah',
-    true
-)
-ON CONFLICT (subdomain) DO UPDATE SET
-    is_active = true;
-
--- 4. Initial Demo Office (Kampus / Gedung Utama)
-INSERT INTO offices (id, tenant_id, name, latitude, longitude, radius_meters)
-VALUES (
-    'b0000000-0000-0000-0000-000000000001',
-    'a0000000-0000-0000-0000-000000000001',
-    'Kampus Utama Pusat',
-    -6.208800,
-    106.845600,
-    100
-)
-ON CONFLICT (id) DO UPDATE SET
-    name = EXCLUDED.name,
-    latitude = EXCLUDED.latitude,
-    longitude = EXCLUDED.longitude,
-    radius_meters = EXCLUDED.radius_meters;
 
 -- 5. Tenant Admin (Admin Lembaga Demo)
 INSERT INTO users (

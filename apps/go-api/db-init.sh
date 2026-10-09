@@ -105,6 +105,19 @@ echo -e "${GREEN}[SUCCESS] Semua migrasi skema database berhasil diterapkan!${NC
 # 4. Pastikan Data Login Awal (Seed Super Admin & Tenant Admin) Terdaftar
 echo -e "\n${BLUE}--- Langkah 2: Verifikasi & Upsert Kredensial Pengguna ---${NC}"
 
+# Pastikan constraint UNIQUE email ada di tabel users agar ON CONFLICT (email) bekerja
+CONSTRAINT_FIX=$(cat <<'EOF'
+DO $$
+BEGIN
+    DROP INDEX IF EXISTS idx_users_email_unique;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_email_key' OR conname = 'users_email_unique') THEN
+        ALTER TABLE users ADD CONSTRAINT users_email_key UNIQUE (email);
+    END IF;
+END $$;
+EOF
+)
+execute_sql_query "${CONSTRAINT_FIX}"
+
 SUPERADMIN_EMAIL="wahidalimudin672@gmail.com"
 LOGIN_PASS_PLAIN="Password123!"
 # Bcrypt hash dari "Password123!" dengan cost 10
