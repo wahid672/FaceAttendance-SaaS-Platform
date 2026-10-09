@@ -51,7 +51,7 @@
 								}
 							],
 							"cookie": [],
-							"body": "{\n    \"database\": \"healthy\",\n    \"service\": \"go-api\",\n    \"status\": \"ok\",\n    \"version\": \"1.0.0\"\n}"
+							"body": "{\n    \"ai_engine\": \"healthy\",\n    \"database\": \"healthy\",\n    \"service\": \"go-api\",\n    \"status\": \"ok\",\n    \"version\": \"1.0.0\"\n}"
 						}
 					]
 				}

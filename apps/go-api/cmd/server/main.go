@@ -83,11 +83,23 @@ func main() {
 		if err := dbPool.Ping(c.Request.Context()); err != nil {
 			dbStatus = "unreachable"
 		}
+
+		aiStatus, err := aiClient.CheckHealth(c.Request.Context())
+		if err != nil && aiStatus == "" {
+			aiStatus = "unreachable"
+		}
+
+		overallStatus := "ok"
+		if dbStatus != "healthy" || aiStatus != "healthy" {
+			overallStatus = "degraded"
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"status":   "ok",
-			"service":  "go-api",
-			"database": dbStatus,
-			"version":  "1.0.0",
+			"status":    overallStatus,
+			"service":   "go-api",
+			"database":  dbStatus,
+			"ai_engine": aiStatus,
+			"version":   "1.0.0",
 		})
 	})
 

@@ -15,6 +15,7 @@ type AIEngineClient interface {
 	ExtractFace(ctx context.Context, filename string, fileData []byte) ([]float32, error)
 	EnrollMerge(ctx context.Context, files []UploadedFile) ([]float32, error)
 	CompareEmbeddings(ctx context.Context, v1, v2 []float32) (float64, bool, error)
+	CheckHealth(ctx context.Context) (string, error)
 }
 
 type UploadedFile struct {
@@ -213,3 +214,40 @@ func (c *aiEngineClient) CompareEmbeddings(ctx context.Context, v1, v2 []float32
 
 	return compResp.Similarity, compResp.IsMatch, nil
 }
+
+func (c *aiEngineClient) CheckHealth(ctx context.Context) (string, error) {
+	url := fmt.Sprintf("%s/health", c.baseURL)
+
+	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)
+	if err != nil {
+		return "unreachable", fmt.Errorf("failed to create health check request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "unreachable", fmt.Errorf("failed to connect to AI engine health endpoint: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "unhealthy", fmt.Errorf("AI engine health check returned HTTP %d", resp.StatusCode)
+	}
+
+	var healthResp struct {
+		Status      string `json:"status"`
+		Service     string `json:"service"`
+		ModelLoaded bool   `json:"model_loaded"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&healthResp); err == nil {
+		if !healthResp.ModelLoaded {
+			return "model_not_ready", nil
+		}
+	}
+
+	return "healthy", nil
+}
+

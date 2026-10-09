@@ -48,7 +48,7 @@ Dokumentasi resmi penggunaan REST API untuk backend service **FaceAttendance Go 
 
 ### 3.1. Health Check
 
-Memeriksa kesehatan service Go API dan konektivitas connection pool PostgreSQL.
+Memeriksa kesehatan service Go API, konektivitas connection pool PostgreSQL (pgvector), dan microservice AI Engine (InsightFace).
 
 - **URL**: `/health`
 - **Method**: `GET`
@@ -62,12 +62,17 @@ curl -X GET http://localhost:8080/health
 #### Respons Sukses (200 OK):
 ```json
 {
-  "database": "healthy",
-  "service": "go-api",
   "status": "ok",
+  "service": "go-api",
+  "database": "healthy",
+  "ai_engine": "healthy",
   "version": "1.0.0"
 }
 ```
+> **Catatan Status**:
+> - `status`: `"ok"` (jika DB dan AI Engine siap) atau `"degraded"` (jika salah satu dependensi mengalami kendala).
+> - `database`: `"healthy"` atau `"unreachable"`.
+> - `ai_engine`: `"healthy"`, `"model_not_ready"`, `"unhealthy"`, atau `"unreachable"`.
 
 ---
 
