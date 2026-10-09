@@ -9,7 +9,8 @@ import (
 type AttendanceLog struct {
 	ID              uuid.UUID `json:"id"`
 	TenantID        uuid.UUID `json:"tenant_id"`
-	EmployeeID      uuid.UUID `json:"employee_id"`
+	UserID          uuid.UUID `json:"user_id"`
+	EmployeeID      uuid.UUID `json:"employee_id,omitempty"` // Alias compatibility
 	ClockTime       time.Time `json:"clock_time"`
 	AttendanceType  string    `json:"attendance_type"` // 'IN' or 'OUT'
 	SimilarityScore float64   `json:"similarity_score"`

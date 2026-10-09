@@ -102,59 +102,94 @@ done
 
 echo -e "${GREEN}[SUCCESS] Semua migrasi skema database berhasil diterapkan!${NC}"
 
-# 4. Pastikan Data Login Awal (Seed Admin / Employee) Terdaftar
+# 4. Pastikan Data Login Awal (Seed Super Admin & Tenant Admin) Terdaftar
 echo -e "\n${BLUE}--- Langkah 2: Verifikasi & Upsert Kredensial Pengguna ---${NC}"
 
-LOGIN_EMAIL="wahidalimudin672@gmail.com"
+SUPERADMIN_EMAIL="wahidalimudin672@gmail.com"
 LOGIN_PASS_PLAIN="Password123!"
 # Bcrypt hash dari "Password123!" dengan cost 10
 BCRYPT_HASH="\$2a\$10\$jUNN.tPJ.rPU9lkAuyFFZ.ygSOfC7TqlVn/Z9XOBVWlTEI0GIC68i"
 
 SEED_QUERY=$(cat <<EOF
--- Pastikan tenant default ada
+-- 1. Pastikan platform settings ada
+INSERT INTO platform_settings (id, app_name, company_name, support_email)
+VALUES (1, 'FaceAttendance SaaS Platform', 'PT Face Attendance Nusantara', 'support@faceattendance.id')
+ON CONFLICT (id) DO UPDATE SET app_name = EXCLUDED.app_name;
+
+-- 2. Pastikan Super Admin ada
+INSERT INTO users (
+    id,
+    tenant_id,
+    office_id,
+    role,
+    name,
+    email,
+    password_hash,
+    user_code,
+    is_active
+) VALUES (
+    '00000000-0000-0000-0000-000000000001',
+    NULL,
+    NULL,
+    'superadmin',
+    'Wahid Alimudin (Super Admin)',
+    '${SUPERADMIN_EMAIL}',
+    '${BCRYPT_HASH}',
+    'SUPERADMIN-01',
+    true
+)
+ON CONFLICT (email) DO UPDATE SET
+    role = 'superadmin',
+    password_hash = EXCLUDED.password_hash,
+    name = EXCLUDED.name,
+    is_active = true;
+
+-- 3. Pastikan tenant default ada
 INSERT INTO tenants (id, name, subdomain, is_active)
 VALUES (
     'a0000000-0000-0000-0000-000000000001',
-    'TechCorp Indonesia',
-    'techcorp',
+    'Pondok Pesantren Al-Hidayah Demo',
+    'alhidayah',
     true
 )
 ON CONFLICT (subdomain) DO UPDATE SET is_active = true;
 
--- Pastikan office geofencing default ada
+-- 4. Pastikan office geofencing default ada
 INSERT INTO offices (id, tenant_id, name, latitude, longitude, radius_meters)
 VALUES (
     'b0000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
-    'Kantor Pusat Jakarta',
+    'Kampus Utama Pusat',
     -6.208800,
     106.845600,
     100
 )
 ON CONFLICT (id) DO NOTHING;
 
--- Upsert akun employee Wahid Alimudin
-INSERT INTO employees (
+-- 5. Upsert akun Admin Lembaga Demo
+INSERT INTO users (
     id,
     tenant_id,
     office_id,
+    role,
     name,
     email,
     password_hash,
-    employee_code,
+    user_code,
     is_active
-)
-VALUES (
+) VALUES (
     'c0000000-0000-0000-0000-000000000001',
     'a0000000-0000-0000-0000-000000000001',
     'b0000000-0000-0000-0000-000000000001',
-    'Wahid Alimudin',
-    '${LOGIN_EMAIL}',
+    'tenant_admin',
+    'Ustadz Fauzan (Admin Lembaga)',
+    'admin@alhidayah.ponpes.id',
     '${BCRYPT_HASH}',
-    'EMP-001',
+    'ADM-001',
     true
 )
 ON CONFLICT (email) DO UPDATE SET
+    role = 'tenant_admin',
     password_hash = EXCLUDED.password_hash,
     name = EXCLUDED.name,
     is_active = true,
@@ -164,19 +199,25 @@ EOF
 
 execute_sql_query "${SEED_QUERY}"
 
-echo -e "${GREEN}[SUCCESS] Akun login pengguna berhasil diinisialisasi/diperbarui!${NC}"
+echo -e "${GREEN}[SUCCESS] Akun Super Admin & Admin Lembaga berhasil diinisialisasi!${NC}"
 
 # 5. Tampilkan ringkasan data di database
 echo -e "\n${BLUE}--- Ringkasan Data Database ---${NC}"
+execute_sql_query "SELECT id, app_name, company_name FROM platform_settings;"
 execute_sql_query "SELECT id, name, subdomain, is_active FROM tenants;"
 execute_sql_query "SELECT id, name, latitude, longitude, radius_meters FROM offices;"
-execute_sql_query "SELECT id, name, email, employee_code, is_active, (face_embedding IS NOT NULL) AS has_face FROM employees;"
+execute_sql_query "SELECT id, role, name, email, user_code, is_active, (face_embedding IS NOT NULL) AS has_face FROM users;"
 
 echo -e "\n${GREEN}======================================================${NC}"
 echo -e "${GREEN}   Inisialisasi Database Selesai!                    ${NC}"
 echo -e "${GREEN}======================================================${NC}"
 echo -e "Kredensial Login yang dapat digunakan di API:"
-echo -e "  - Endpoint : ${YELLOW}POST /api/v1/auth/login${NC}"
-echo -e "  - Email    : ${YELLOW}${LOGIN_EMAIL}${NC}"
-echo -e "  - Password : ${YELLOW}${LOGIN_PASS_PLAIN}${NC}"
+echo -e "  [1] Super Admin (Pemilik SaaS Global):"
+echo -e "      - Email    : ${YELLOW}${SUPERADMIN_EMAIL}${NC}"
+echo -e "      - Password : ${YELLOW}${LOGIN_PASS_PLAIN}${NC}"
+echo -e "      - Role     : ${YELLOW}superadmin${NC}"
+echo -e "  [2] Admin Lembaga (Pondok Pesantren Demo):"
+echo -e "      - Email    : ${YELLOW}admin@alhidayah.ponpes.id${NC}"
+echo -e "      - Password : ${YELLOW}${LOGIN_PASS_PLAIN}${NC}"
+echo -e "      - Role     : ${YELLOW}tenant_admin${NC}"
 echo -e "======================================================\n"

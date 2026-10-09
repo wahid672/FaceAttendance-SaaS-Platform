@@ -13,6 +13,7 @@ const (
 	CtxKeyTenantID   = "tenant_id"
 	CtxKeyUserID     = "user_id"
 	CtxKeyEmployeeID = "employee_id"
+	CtxKeyRole       = "user_role"
 )
 
 func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
@@ -48,6 +49,45 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 		c.Set(CtxKeyTenantID, claims.TenantID)
 		c.Set(CtxKeyUserID, claims.UserID)
 		c.Set(CtxKeyEmployeeID, claims.EmployeeID)
+		c.Set(CtxKeyRole, claims.Role)
+		c.Next()
+	}
+}
+
+// RequireSuperAdmin restricts access exclusively to platform super administrators
+func RequireSuperAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleVal, exists := c.Get(CtxKeyRole)
+		if !exists || roleVal != "superadmin" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"error":   "Forbidden: Requires superadmin role",
+			})
+			return
+		}
+		c.Next()
+	}
+}
+
+// RequireTenantAdmin restricts access to institution / tenant administrators (or superadmin)
+func RequireTenantAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		roleVal, exists := c.Get(CtxKeyRole)
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"error":   "Forbidden: Missing user role",
+			})
+			return
+		}
+		role := roleVal.(string)
+		if role != "superadmin" && role != "tenant_admin" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"error":   "Forbidden: Requires tenant_admin or superadmin role",
+			})
+			return
+		}
 		c.Next()
 	}
 }

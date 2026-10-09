@@ -11,6 +11,7 @@ import (
 type AttendanceRepository interface {
 	Create(ctx context.Context, log *model.AttendanceLog) error
 	GetByEmployeeID(ctx context.Context, employeeID uuid.UUID, limit int) ([]*model.AttendanceLog, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID, limit int) ([]*model.AttendanceLog, error)
 }
 
 type attendanceRepository struct {
@@ -24,32 +25,39 @@ func NewAttendanceRepository(db *pgxpool.Pool) AttendanceRepository {
 func (r *attendanceRepository) Create(ctx context.Context, log *model.AttendanceLog) error {
 	query := `
 		INSERT INTO attendance_logs (
-			tenant_id, employee_id, clock_time, attendance_type, similarity_score,
+			tenant_id, user_id, clock_time, attendance_type, similarity_score,
 			latitude, longitude, distance_meters, device_id, photo_url, is_valid
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 		) RETURNING id, created_at
 	`
+	uid := log.UserID
+	if uid == uuid.Nil {
+		uid = log.EmployeeID
+	}
+	log.UserID = uid
+	log.EmployeeID = uid
+
 	return r.db.QueryRow(
 		ctx, query,
-		log.TenantID, log.EmployeeID, log.ClockTime, log.AttendanceType, log.SimilarityScore,
+		log.TenantID, uid, log.ClockTime, log.AttendanceType, log.SimilarityScore,
 		log.Latitude, log.Longitude, log.DistanceMeters, log.DeviceID, log.PhotoURL, log.IsValid,
 	).Scan(&log.ID, &log.CreatedAt)
 }
 
-func (r *attendanceRepository) GetByEmployeeID(ctx context.Context, employeeID uuid.UUID, limit int) ([]*model.AttendanceLog, error) {
+func (r *attendanceRepository) GetByUserID(ctx context.Context, userID uuid.UUID, limit int) ([]*model.AttendanceLog, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	query := `
-		SELECT id, tenant_id, employee_id, clock_time, attendance_type, similarity_score,
+		SELECT id, tenant_id, user_id, clock_time, attendance_type, similarity_score,
 		       latitude, longitude, distance_meters, device_id, photo_url, is_valid, created_at
 		FROM attendance_logs
-		WHERE employee_id = $1
+		WHERE user_id = $1
 		ORDER BY clock_time DESC
 		LIMIT $2
 	`
-	rows, err := r.db.Query(ctx, query, employeeID, limit)
+	rows, err := r.db.Query(ctx, query, userID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -59,12 +67,17 @@ func (r *attendanceRepository) GetByEmployeeID(ctx context.Context, employeeID u
 	for rows.Next() {
 		var l model.AttendanceLog
 		if err := rows.Scan(
-			&l.ID, &l.TenantID, &l.EmployeeID, &l.ClockTime, &l.AttendanceType, &l.SimilarityScore,
+			&l.ID, &l.TenantID, &l.UserID, &l.ClockTime, &l.AttendanceType, &l.SimilarityScore,
 			&l.Latitude, &l.Longitude, &l.DistanceMeters, &l.DeviceID, &l.PhotoURL, &l.IsValid, &l.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
+		l.EmployeeID = l.UserID
 		logs = append(logs, &l)
 	}
 	return logs, nil
+}
+
+func (r *attendanceRepository) GetByEmployeeID(ctx context.Context, employeeID uuid.UUID, limit int) ([]*model.AttendanceLog, error) {
+	return r.GetByUserID(ctx, employeeID, limit)
 }

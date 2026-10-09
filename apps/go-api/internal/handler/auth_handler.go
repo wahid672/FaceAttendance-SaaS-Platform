@@ -22,26 +22,29 @@ type LoginRequest struct {
 
 type UserData struct {
 	ID           string  `json:"id"`
-	TenantID     string  `json:"tenant_id"`
+	TenantID     *string `json:"tenant_id,omitempty"`
 	OfficeID     *string `json:"office_id,omitempty"`
+	Role         string  `json:"role"`
 	Name         string  `json:"name"`
-	Email        string  `json:"email"`
+	Email        *string `json:"email,omitempty"`
 	UserCode     string  `json:"user_code"`
-	EmployeeCode string  `json:"employee_code"`
+	EmployeeCode string  `json:"employee_code,omitempty"`
 	IsActive     bool    `json:"is_active"`
 	IsEnrolled   bool    `json:"is_enrolled"`
 }
 
+type TenantData struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Subdomain string `json:"subdomain"`
+}
+
 type LoginResponse struct {
-	Success  bool     `json:"success"`
-	Token    string   `json:"token"`
-	User     UserData `json:"user"`
-	Employee UserData `json:"employee"`
-	Tenant   struct {
-		ID        string `json:"id"`
-		Name      string `json:"name"`
-		Subdomain string `json:"subdomain"`
-	} `json:"tenant"`
+	Success  bool        `json:"success"`
+	Token    string      `json:"token"`
+	User     UserData    `json:"user"`
+	Employee UserData    `json:"employee"`
+	Tenant   *TenantData `json:"tenant,omitempty"`
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -78,10 +81,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		officeIDStr = &s
 	}
 
+	var tenantIDStr *string
+	if employee.TenantID != nil {
+		s := employee.TenantID.String()
+		tenantIDStr = &s
+	}
+
 	userData := UserData{
 		ID:           employee.ID.String(),
-		TenantID:     employee.TenantID.String(),
+		TenantID:     tenantIDStr,
 		OfficeID:     officeIDStr,
+		Role:         employee.Role,
 		Name:         employee.Name,
 		Email:        employee.Email,
 		UserCode:     code,
@@ -93,9 +103,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	resp.User = userData
 	resp.Employee = userData
 
-	resp.Tenant.ID = tenant.ID.String()
-	resp.Tenant.Name = tenant.Name
-	resp.Tenant.Subdomain = tenant.Subdomain
+	if tenant != nil {
+		resp.Tenant = &TenantData{
+			ID:        tenant.ID.String(),
+			Name:      tenant.Name,
+			Subdomain: tenant.Subdomain,
+		}
+	}
 
 	c.JSON(http.StatusOK, resp)
 }

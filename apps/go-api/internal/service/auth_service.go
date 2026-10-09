@@ -35,32 +35,52 @@ func (s *authService) Login(ctx context.Context, email, password string) (string
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if employee == nil || tenant == nil {
+	if employee == nil {
 		return "", nil, nil, errors.New("invalid email or password")
 	}
 
-	if !tenant.IsActive {
-		return "", nil, nil, errors.New("tenant account is inactive")
+	if employee.Role != "superadmin" {
+		if tenant == nil {
+			return "", nil, nil, errors.New("tenant not found")
+		}
+		if !tenant.IsActive {
+			return "", nil, nil, errors.New("tenant account is inactive")
+		}
 	}
 
 	if !employee.IsActive {
-		return "", nil, nil, errors.New("employee account is inactive")
+		return "", nil, nil, errors.New("user account is inactive")
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(employee.PasswordHash), []byte(password)); err != nil {
 		return "", nil, nil, errors.New("invalid email or password")
 	}
 
+	var tenantID uuid.UUID
+	if tenant != nil {
+		tenantID = tenant.ID
+	}
+
+	var emailStr string
+	if employee.Email != nil {
+		emailStr = *employee.Email
+	}
+
+	role := employee.Role
+	if role == "" {
+		role = "user"
+	}
+
 	// Generate JWT Token (valid for 24 hours)
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &model.JWTClaims{
-		TenantID:   tenant.ID,
+		TenantID:   tenantID,
 		UserID:     employee.ID,
 		EmployeeID: employee.ID,
 		OfficeID:   employee.OfficeID,
-		Email:      employee.Email,
+		Email:      emailStr,
 		Name:       employee.Name,
-		Role:       "employee",
+		Role:       role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

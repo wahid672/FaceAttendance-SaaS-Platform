@@ -120,12 +120,18 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
+	var tenantIDStr *string
+	if user.TenantID != nil {
+		s := user.TenantID.String()
+		tenantIDStr = &s
+	}
+
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
 		"message": "User created successfully",
 		"user": gin.H{
 			"id":            user.ID.String(),
-			"tenant_id":     user.TenantID.String(),
+			"tenant_id":     tenantIDStr,
 			"office_id":     user.OfficeID,
 			"name":          user.Name,
 			"email":         user.Email,
@@ -498,7 +504,7 @@ func (h *UserHandler) EnrollFace(c *gin.Context) {
 
 func (h *UserHandler) GetProfile(c *gin.Context) {
 	tenantIDVal, _ := c.Get(middleware.CtxKeyTenantID)
-	tenantID := tenantIDVal.(uuid.UUID)
+	tenantID, _ := tenantIDVal.(uuid.UUID)
 
 	callerID, _ := getCallerUserID(c)
 
@@ -508,31 +514,29 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
+	var tenantIDStr *string
+	if user.TenantID != nil {
+		s := user.TenantID.String()
+		tenantIDStr = &s
+	}
+
+	profileData := gin.H{
+		"id":                 user.ID.String(),
+		"tenant_id":          tenantIDStr,
+		"office_id":          user.OfficeID,
+		"role":               user.Role,
+		"name":               user.Name,
+		"email":              user.Email,
+		"user_code":          user.UserCode,
+		"employee_code":      user.UserCode,
+		"is_active":          user.IsActive,
+		"is_enrolled":        user.FaceEmbedding != nil,
+		"face_registered_at": user.FaceRegisteredAt,
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"user": gin.H{
-			"id":                 user.ID.String(),
-			"tenant_id":          user.TenantID.String(),
-			"office_id":          user.OfficeID,
-			"name":               user.Name,
-			"email":              user.Email,
-			"user_code":          user.UserCode,
-			"employee_code":      user.UserCode,
-			"is_active":          user.IsActive,
-			"is_enrolled":        user.FaceEmbedding != nil,
-			"face_registered_at": user.FaceRegisteredAt,
-		},
-		"employee": gin.H{
-			"id":                 user.ID.String(),
-			"tenant_id":          user.TenantID.String(),
-			"office_id":          user.OfficeID,
-			"name":               user.Name,
-			"email":              user.Email,
-			"user_code":          user.UserCode,
-			"employee_code":      user.UserCode,
-			"is_active":          user.IsActive,
-			"is_enrolled":        user.FaceEmbedding != nil,
-			"face_registered_at": user.FaceRegisteredAt,
-		},
+		"success":  true,
+		"user":     profileData,
+		"employee": profileData,
 	})
 }

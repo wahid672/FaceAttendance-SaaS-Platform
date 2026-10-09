@@ -92,6 +92,16 @@ Layanan ini dirancang multi-peran (**Siswa/Santri, Guru, Karyawan, dan Pegawai**
 - **Method**: `POST`
 - **Content-Type**: `application/json`
 
+#### Akun Bawaan (Seed Database):
+1. **Super Admin (Platform Owner SaaS)**:
+   - **Email**: `wahidalimudin672@gmail.com`
+   - **Password**: `Password123!`
+   - **Role**: `superadmin` (Mengelola SaaS, platform branding/settings, dan seluruh tenant)
+2. **Admin Lembaga Demo (Pondok Pesantren Demo)**:
+   - **Email**: `admin@alhidayah.ponpes.id`
+   - **Password**: `Password123!`
+   - **Role**: `tenant_admin` (Mengelola santri/siswa/karyawan dan lokasi geofencing lembaga)
+
 #### Request Body:
 ```json
 {
@@ -100,7 +110,24 @@ Layanan ini dirancang multi-peran (**Siswa/Santri, Guru, Karyawan, dan Pegawai**
 }
 ```
 
-#### Respons Sukses (200 OK):
+#### Respons Sukses (200 OK) - Super Admin:
+```json
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "role": "superadmin",
+    "name": "Wahid Alimudin (Super Admin)",
+    "email": "wahidalimudin672@gmail.com",
+    "user_code": "SUPERADMIN-01",
+    "is_active": true,
+    "is_enrolled": false
+  }
+}
+```
+
+#### Respons Sukses (200 OK) - Admin Lembaga:
 ```json
 {
   "success": true,
@@ -109,17 +136,17 @@ Layanan ini dirancang multi-peran (**Siswa/Santri, Guru, Karyawan, dan Pegawai**
     "id": "c0000000-0000-0000-0000-000000000001",
     "tenant_id": "a0000000-0000-0000-0000-000000000001",
     "office_id": "b0000000-0000-0000-0000-000000000001",
-    "name": "Wahid Alimudin",
-    "email": "wahidalimudin672@gmail.com",
-    "user_code": "EMP-001",
-    "employee_code": "EMP-001",
+    "role": "tenant_admin",
+    "name": "Ustadz Fauzan (Admin Lembaga)",
+    "email": "admin@alhidayah.ponpes.id",
+    "user_code": "ADM-001",
     "is_active": true,
     "is_enrolled": false
   },
   "tenant": {
     "id": "a0000000-0000-0000-0000-000000000001",
-    "name": "TechCorp Indonesia",
-    "subdomain": "techcorp"
+    "name": "Pondok Pesantren Al-Hidayah Demo",
+    "subdomain": "alhidayah"
   }
 }
 ```

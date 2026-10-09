@@ -1,10 +1,10 @@
 -- ==========================================================
 -- Migration: 000001_init_schema.down.sql
--- Description: Rollback all tables, views, and extensions.
+-- Description: Rollback all SaaS tables, indexes, and schema.
 -- ==========================================================
 
-DROP VIEW IF EXISTS attendances;
-DROP TABLE IF EXISTS attendance_logs;
-DROP TABLE IF EXISTS employees;
-DROP TABLE IF EXISTS offices;
-DROP TABLE IF EXISTS tenants;
+DROP TABLE IF EXISTS attendance_logs CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS offices CASCADE;
+DROP TABLE IF EXISTS tenants CASCADE;
+DROP TABLE IF EXISTS platform_settings CASCADE;

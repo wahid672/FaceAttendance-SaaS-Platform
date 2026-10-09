@@ -139,6 +139,7 @@ func (s *attendanceService) CheckIn(ctx context.Context, req CheckInRequest) (*C
 	// 6. Record transaction in attendance_logs
 	log := &model.AttendanceLog{
 		TenantID:        req.TenantID,
+		UserID:          req.EmployeeID,
 		EmployeeID:      req.EmployeeID,
 		ClockTime:       time.Now(),
 		AttendanceType:  req.AttendanceType,

@@ -116,12 +116,18 @@ func (s *employeeService) CreateEmployee(ctx context.Context, req CreateEmployee
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
+	var emailPtr *string
+	if email != "" {
+		emailPtr = &email
+	}
+
 	emp := &model.User{
 		ID:           uuid.New(),
-		TenantID:     req.TenantID,
+		TenantID:     &req.TenantID,
 		OfficeID:     req.OfficeID,
+		Role:         "user",
 		Name:         name,
-		Email:        email,
+		Email:        emailPtr,
 		PasswordHash: string(hashedPassword),
 		UserCode:     code,
 		EmployeeCode: code,
@@ -205,12 +211,18 @@ func (s *employeeService) BulkCreateUsers(ctx context.Context, tenantID uuid.UUI
 			continue
 		}
 
+		var emailPtr *string
+		if email != "" {
+			emailPtr = &email
+		}
+
 		user := &model.User{
 			ID:           uuid.New(),
-			TenantID:     tenantID,
+			TenantID:     &tenantID,
 			OfficeID:     req.OfficeID,
+			Role:         "user",
 			Name:         name,
-			Email:        email,
+			Email:        emailPtr,
 			PasswordHash: string(hashedPassword),
 			UserCode:     code,
 			EmployeeCode: code,

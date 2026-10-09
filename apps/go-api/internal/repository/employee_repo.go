@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -35,17 +36,17 @@ func NewEmployeeRepository(db *pgxpool.Pool) EmployeeRepository {
 
 func (r *employeeRepository) GetByID(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) (*model.Employee, error) {
 	query := `
-		SELECT id, tenant_id, office_id, name, email, password_hash, employee_code,
+		SELECT id, tenant_id, office_id, role, name, email, password_hash, user_code,
 		       face_embedding::text, face_registered_at, is_active, created_at
-		FROM employees
-		WHERE id = $1 AND tenant_id = $2
+		FROM users
+		WHERE id = $1 AND ($2 = '00000000-0000-0000-0000-000000000000'::uuid OR tenant_id = $2)
 	`
 	var e model.Employee
 	var embeddingStr *string
 	var faceRegAt *time.Time
 
 	err := r.db.QueryRow(ctx, query, id, tenantID).Scan(
-		&e.ID, &e.TenantID, &e.OfficeID, &e.Name, &e.Email, &e.PasswordHash, &e.EmployeeCode,
+		&e.ID, &e.TenantID, &e.OfficeID, &e.Role, &e.Name, &e.Email, &e.PasswordHash, &e.UserCode,
 		&embeddingStr, &faceRegAt, &e.IsActive, &e.CreatedAt,
 	)
 	if err != nil {
@@ -55,6 +56,7 @@ func (r *employeeRepository) GetByID(ctx context.Context, id uuid.UUID, tenantID
 		return nil, err
 	}
 
+	e.EmployeeCode = e.UserCode
 	e.FaceEmbedding = embeddingStr
 	e.FaceRegisteredAt = faceRegAt
 	return &e, nil
@@ -62,22 +64,27 @@ func (r *employeeRepository) GetByID(ctx context.Context, id uuid.UUID, tenantID
 
 func (r *employeeRepository) GetByEmail(ctx context.Context, email string) (*model.Employee, *model.Tenant, error) {
 	query := `
-		SELECT e.id, e.tenant_id, e.office_id, e.name, e.email, e.password_hash, e.employee_code,
-		       e.face_embedding::text, e.face_registered_at, e.is_active, e.created_at,
+		SELECT u.id, u.tenant_id, u.office_id, u.role, u.name, u.email, u.password_hash, u.user_code,
+		       u.face_embedding::text, u.face_registered_at, u.is_active, u.created_at,
 		       t.id, t.name, t.subdomain, t.is_active, t.created_at
-		FROM employees e
-		JOIN tenants t ON t.id = e.tenant_id
-		WHERE e.email = $1
+		FROM users u
+		LEFT JOIN tenants t ON t.id = u.tenant_id
+		WHERE u.email = $1
 	`
 	var e model.Employee
-	var t model.Tenant
 	var embeddingStr *string
 	var faceRegAt *time.Time
 
+	var tenantID *uuid.UUID
+	var tenantName sql.NullString
+	var tenantSubdomain sql.NullString
+	var tenantIsActive sql.NullBool
+	var tenantCreatedAt sql.NullTime
+
 	err := r.db.QueryRow(ctx, query, email).Scan(
-		&e.ID, &e.TenantID, &e.OfficeID, &e.Name, &e.Email, &e.PasswordHash, &e.EmployeeCode,
+		&e.ID, &e.TenantID, &e.OfficeID, &e.Role, &e.Name, &e.Email, &e.PasswordHash, &e.UserCode,
 		&embeddingStr, &faceRegAt, &e.IsActive, &e.CreatedAt,
-		&t.ID, &t.Name, &t.Subdomain, &t.IsActive, &t.CreatedAt,
+		&tenantID, &tenantName, &tenantSubdomain, &tenantIsActive, &tenantCreatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -86,24 +93,37 @@ func (r *employeeRepository) GetByEmail(ctx context.Context, email string) (*mod
 		return nil, nil, err
 	}
 
+	e.EmployeeCode = e.UserCode
 	e.FaceEmbedding = embeddingStr
 	e.FaceRegisteredAt = faceRegAt
-	return &e, &t, nil
+
+	var tenant *model.Tenant
+	if tenantID != nil && tenantName.Valid {
+		tenant = &model.Tenant{
+			ID:        *tenantID,
+			Name:      tenantName.String,
+			Subdomain: tenantSubdomain.String,
+			IsActive:  tenantIsActive.Bool,
+			CreatedAt: tenantCreatedAt.Time,
+		}
+	}
+
+	return &e, tenant, nil
 }
 
 func (r *employeeRepository) UpdateFaceEmbedding(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) error {
 	query := `
-		UPDATE employees
+		UPDATE users
 		SET face_embedding = $1::vector,
 		    face_registered_at = NOW()
-		WHERE id = $2 AND tenant_id = $3
+		WHERE id = $2 AND ($3 = '00000000-0000-0000-0000-000000000000'::uuid OR tenant_id = $3)
 	`
 	cmdTag, err := r.db.Exec(ctx, query, embeddingStr, id, tenantID)
 	if err != nil {
 		return err
 	}
 	if cmdTag.RowsAffected() == 0 {
-		return errors.New("employee not found or tenant mismatch")
+		return errors.New("user not found or tenant mismatch")
 	}
 	return nil
 }
@@ -113,14 +133,14 @@ func (r *employeeRepository) CalculateCosineSimilarity(ctx context.Context, id u
 	// Cosine similarity = 1 - (face_embedding <=> query_vector)
 	query := `
 		SELECT (1.0 - (face_embedding <=> $1::vector)) AS similarity
-		FROM employees
-		WHERE id = $2 AND tenant_id = $3 AND face_embedding IS NOT NULL
+		FROM users
+		WHERE id = $2 AND ($3 = '00000000-0000-0000-0000-000000000000'::uuid OR tenant_id = $3) AND face_embedding IS NOT NULL
 	`
 	var similarity float64
 	err := r.db.QueryRow(ctx, query, embeddingStr, id, tenantID).Scan(&similarity)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0.0, errors.New("employee face is not enrolled or employee not found")
+			return 0.0, errors.New("user face is not enrolled or user not found")
 		}
 		return 0.0, err
 	}
@@ -129,10 +149,10 @@ func (r *employeeRepository) CalculateCosineSimilarity(ctx context.Context, id u
 
 func (r *employeeRepository) Create(ctx context.Context, employee *model.Employee) error {
 	query := `
-		INSERT INTO employees (
-			id, tenant_id, office_id, name, email, password_hash, employee_code, is_active, created_at
+		INSERT INTO users (
+			id, tenant_id, office_id, role, name, email, password_hash, user_code, is_active, created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING created_at
 	`
 	if employee.ID == uuid.Nil {
@@ -140,6 +160,9 @@ func (r *employeeRepository) Create(ctx context.Context, employee *model.Employe
 	}
 	if employee.CreatedAt.IsZero() {
 		employee.CreatedAt = time.Now()
+	}
+	if employee.Role == "" {
+		employee.Role = "user"
 	}
 
 	code := employee.UserCode
@@ -153,6 +176,7 @@ func (r *employeeRepository) Create(ctx context.Context, employee *model.Employe
 		employee.ID,
 		employee.TenantID,
 		employee.OfficeID,
+		employee.Role,
 		employee.Name,
 		employee.Email,
 		employee.PasswordHash,
@@ -174,10 +198,10 @@ func (r *employeeRepository) BulkCreate(ctx context.Context, employees []*model.
 	defer tx.Rollback(ctx)
 
 	query := `
-		INSERT INTO employees (
-			id, tenant_id, office_id, name, email, password_hash, employee_code, is_active, created_at
+		INSERT INTO users (
+			id, tenant_id, office_id, role, name, email, password_hash, user_code, is_active, created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING created_at
 	`
 
@@ -188,6 +212,9 @@ func (r *employeeRepository) BulkCreate(ctx context.Context, employees []*model.
 		}
 		if emp.CreatedAt.IsZero() {
 			emp.CreatedAt = now
+		}
+		if emp.Role == "" {
+			emp.Role = "user"
 		}
 		code := emp.UserCode
 		if code == "" {
@@ -200,6 +227,7 @@ func (r *employeeRepository) BulkCreate(ctx context.Context, employees []*model.
 			emp.ID,
 			emp.TenantID,
 			emp.OfficeID,
+			emp.Role,
 			emp.Name,
 			emp.Email,
 			emp.PasswordHash,
@@ -208,7 +236,13 @@ func (r *employeeRepository) BulkCreate(ctx context.Context, employees []*model.
 			emp.CreatedAt,
 		).Scan(&emp.CreatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("failed to insert user (%s): %w", emp.Email, err)
+			var idStr string
+			if emp.Email != nil {
+				idStr = *emp.Email
+			} else {
+				idStr = emp.UserCode
+			}
+			return nil, fmt.Errorf("failed to insert user (%s): %w", idStr, err)
 		}
 	}
 
@@ -220,7 +254,7 @@ func (r *employeeRepository) BulkCreate(ctx context.Context, employees []*model.
 }
 
 func (r *employeeRepository) Delete(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) error {
-	query := `DELETE FROM employees WHERE id = $1 AND tenant_id = $2`
+	query := `DELETE FROM users WHERE id = $1 AND ($2 = '00000000-0000-0000-0000-000000000000'::uuid OR tenant_id = $2)`
 	cmdTag, err := r.db.Exec(ctx, query, id, tenantID)
 	if err != nil {
 		return err
@@ -236,7 +270,7 @@ func (r *employeeRepository) BulkDelete(ctx context.Context, ids []uuid.UUID, te
 		return 0, nil
 	}
 
-	query := `DELETE FROM employees WHERE id = ANY($1) AND tenant_id = $2`
+	query := `DELETE FROM users WHERE id = ANY($1) AND ($2 = '00000000-0000-0000-0000-000000000000'::uuid OR tenant_id = $2)`
 	cmdTag, err := r.db.Exec(ctx, query, ids, tenantID)
 	if err != nil {
 		return 0, err
@@ -247,5 +281,3 @@ func (r *employeeRepository) BulkDelete(ctx context.Context, ids []uuid.UUID, te
 func NewUserRepository(db *pgxpool.Pool) UserRepository {
 	return NewEmployeeRepository(db)
 }
-
-
