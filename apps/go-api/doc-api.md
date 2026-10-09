@@ -35,18 +35,33 @@ Dokumentasi resmi penggunaan REST API untuk backend service **FaceAttendance Go 
 
 | No | Kategori | Method | Endpoint | Autentikasi | Deskripsi Singkat |
 |---|---|---|---|---|---|
-| 1 | Health | `GET` | `/health` | Publik | Status service & koneksi database pgvector |
-| 2 | Auth | `POST` | `/api/v1/auth/login` | Publik | Login employee & penerbitan token JWT |
-| 3 | Employee | `GET` | `/api/v1/employees/me` | Bearer Token | Ambil data profil employee yang login |
-| 4 | Employee | `POST` | `/api/v1/employees/enroll-face` | Bearer Token | Pendaftaran foto master wajah (vektor 512-d) |
-| 5 | Attendance | `POST` | `/api/v1/attendance/check-in` | Bearer Token | Presensi masuk/pulang dengan selfie & GPS |
-| 6 | Attendance | `GET` | `/api/v1/attendance/history` | Bearer Token | Riwayat riil transaksi absensi employee |
+| 1 | Documentation | `GET` | `/docs` | Publik | **Swagger UI** Dokumentasi Interaktif OpenAPI |
+| 2 | Health | `GET` | `/health` | Publik | Status service, DB pgvector, & AI engine |
+| 3 | Auth | `POST` | `/api/v1/auth/login` | Publik | Login employee & penerbitan token JWT |
+| 4 | Employee | `POST` | `/api/v1/employees` | Bearer Token | Menambahkan pegawai / karyawan baru |
+| 5 | Employee | `GET` | `/api/v1/employees/me` | Bearer Token | Ambil data profil employee yang login |
+| 6 | Employee | `DELETE` | `/api/v1/employees/:id` | Bearer Token | Hapus akun pegawai (gagal jika hapus diri sendiri) |
+| 7 | Employee | `POST` | `/api/v1/employees/enroll-face` | Bearer Token | Pendaftaran foto master wajah (vektor 512-d) |
+| 8 | Attendance | `POST` | `/api/v1/attendance/check-in` | Bearer Token | Presensi masuk/pulang dengan selfie & GPS |
+| 9 | Attendance | `GET` | `/api/v1/attendance/history` | Bearer Token | Riwayat riil transaksi absensi employee |
 
 ---
 
 ## 3. Detail Spesifikasi Endpoint
 
-### 3.1. Health Check
+### 3.1. Swagger UI (Dokumentasi Interaktif)
+
+Mengakses antarmuka interaktif OpenAPI / Swagger UI untuk melihat spesifikasi skema, model request/response, dan melakukan uji coba API (*Try it out*) langsung dari browser.
+
+- **URL**: `/docs` atau `/docs/`
+- **Method**: `GET`
+- **Autentikasi**: Tidak ada (Publik)
+- **OpenAPI JSON Spec**: `/docs/swagger.json`
+- **Fitur**: Dilengkapi tombol **Authorize** untuk memasukkan JWT Bearer Token (`Bearer <token>`).
+
+---
+
+### 3.2. Health Check
 
 Memeriksa kesehatan service Go API, konektivitas connection pool PostgreSQL (pgvector), dan microservice AI Engine (InsightFace).
 
@@ -76,7 +91,7 @@ curl -X GET http://localhost:8080/health
 
 ---
 
-### 3.2. Login Employee
+### 3.3. Login Employee
 
 Melakukan verifikasi kredensial email & password employee multi-tenant.
 
@@ -141,7 +156,78 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 
 ---
 
-### 3.3. Get Profile Employee
+### 3.4. Create Employee (Tambah Karyawan Baru)
+
+Mendaftarkan akun karyawan/pegawai baru di bawah tenant yang sama. Password akan otomatis di-hash menggunakan algoritma **bcrypt**.
+
+- **URL**: `/api/v1/employees`
+- **Method**: `POST`
+- **Content-Type**: `application/json`
+- **Autentikasi**: `Bearer <token>`
+
+#### Request Body:
+| Field | Tipe | Wajib | Keterangan |
+|---|---|---|---|
+| `name` | string | Ya | Nama lengkap pegawai |
+| `email` | string | Ya | Alamat email unik pegawai |
+| `password` | string | Ya | Password login (minimal 6 karakter) |
+| `employee_code` | string | Ya | NIK / Nomor induk pegawai (contoh: `EMP-002`) |
+| `office_id` | string (UUID) | Opsional | ID kantor penugasan geofence |
+
+```json
+{
+  "name": "Siti Nurhaliza",
+  "email": "siti@techcorp.com",
+  "password": "Password123!",
+  "employee_code": "EMP-002",
+  "office_id": "b0000000-0000-0000-0000-000000000001"
+}
+```
+
+#### Contoh Request cURL:
+```bash
+curl -X POST http://localhost:8080/api/v1/employees \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Siti Nurhaliza",
+    "email": "siti@techcorp.com",
+    "password": "Password123!",
+    "employee_code": "EMP-002",
+    "office_id": "b0000000-0000-0000-0000-000000000001"
+  }'
+```
+
+#### Respons Sukses (201 Created):
+```json
+{
+  "success": true,
+  "message": "Employee created successfully",
+  "employee": {
+    "id": "f51950d2-97d8-4f05-87d4-0610fba0d540",
+    "tenant_id": "a0000000-0000-0000-0000-000000000001",
+    "office_id": "b0000000-0000-0000-0000-000000000001",
+    "name": "Siti Nurhaliza",
+    "email": "siti@techcorp.com",
+    "employee_code": "EMP-002",
+    "is_active": true,
+    "is_enrolled": false,
+    "created_at": "2026-10-09T09:10:00Z"
+  }
+}
+```
+
+#### Respons Gagal (400 Bad Request):
+```json
+{
+  "success": false,
+  "error": "email is already registered"
+}
+```
+
+---
+
+### 3.5. Get Profile Employee
 
 Mengambil data profil lengkap employee yang saat ini sedang login, termasuk status pendaftaran wajah (`is_enrolled`).
 
@@ -160,22 +246,69 @@ curl -X GET http://localhost:8080/api/v1/employees/me \
 {
   "success": true,
   "employee": {
-    "id": "c56a4180-65aa-42ec-a945-5fd21dec0538",
-    "tenant_id": "e02b740e-7c57-4ea2-a164-97217db52f14",
-    "office_id": "3a726bd7-4999-4d69-bb11-c913501a3ca5",
-    "name": "Budi Santoso",
-    "email": "budi@techcorp.com",
-    "employee_code": "EMP001",
+    "id": "c0000000-0000-0000-0000-000000000001",
+    "tenant_id": "a0000000-0000-0000-0000-000000000001",
+    "office_id": "b0000000-0000-0000-0000-000000000001",
+    "name": "Wahid Alimudin",
+    "email": "wahidalimudin672@gmail.com",
+    "employee_code": "EMP-001",
     "is_active": true,
-    "is_enrolled": true,
-    "face_registered_at": "2026-10-09T06:00:00Z"
+    "is_enrolled": false,
+    "face_registered_at": null
   }
 }
 ```
 
 ---
 
-### 3.4. Enroll Face (Pendaftaran Wajah Master)
+### 3.6. Delete Employee (Hapus Karyawan)
+
+Menghapus akun karyawan berdasarkan ID UUID.
+> **Validasi Proteksi Diri Sendiri**: Sistem menolak dan menggagalkan operasi jika pegawai mencoba menghapus akunnya sendiri (`target_id == caller_id`).
+
+- **URL**: `/api/v1/employees/:id`
+- **Method**: `DELETE`
+- **Autentikasi**: `Bearer <token>`
+
+#### URL Parameter:
+| Parameter | Tipe | Wajib | Keterangan |
+|---|---|---|---|
+| `id` | string (UUID) | Ya | ID unik karyawan yang ingin dihapus |
+
+#### Contoh Request cURL:
+```bash
+curl -X DELETE http://localhost:8080/api/v1/employees/f51950d2-97d8-4f05-87d4-0610fba0d540 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### Respons Sukses (200 OK):
+```json
+{
+  "success": true,
+  "message": "Employee deleted successfully",
+  "deleted_id": "f51950d2-97d8-4f05-87d4-0610fba0d540"
+}
+```
+
+#### Respons Gagal - Hapus Diri Sendiri (400 Bad Request):
+```json
+{
+  "success": false,
+  "error": "Gagal: Tidak dapat menghapus akun pegawai diri sendiri"
+}
+```
+
+#### Respons Gagal - Tidak Ditemukan (404 Not Found):
+```json
+{
+  "success": false,
+  "error": "employee not found or tenant mismatch"
+}
+```
+
+---
+
+### 3.7. Enroll Face (Pendaftaran Wajah Master)
 
 Mendaftarkan sampel foto wajah pegawai ke sistem. AI Engine akan mengekstraksi vektor embedding representatif 512 dimensi dan menyimpannya di kolom `face_embedding` pada tabel `employees` PostgreSQL pgvector.
 
@@ -221,7 +354,7 @@ curl -X POST http://localhost:8080/api/v1/employees/enroll-face \
 
 ---
 
-### 3.5. Attendance Check-In / Check-Out
+### 3.8. Attendance Check-In / Check-Out
 
 Melakukan transaksi presensi masuk atau pulang. Endpoint ini melakukan **dua tahap validasi simultan**:
 1. **Validasi Geofencing**: Menghitung jarak GPS koordinat pegawai terhadap kantor yang ditugaskan menggunakan formula Haversine. Jarak harus $\le \text{radius\_meters}$ kantor.
@@ -295,7 +428,7 @@ curl -X POST http://localhost:8080/api/v1/attendance/check-in \
 
 ---
 
-### 3.6. Riwayat Presensi (Attendance History)
+### 3.9. Riwayat Presensi (Attendance History)
 
 Mengambil daftar transaksi presensi milik pegawai yang login, diurutkan dari yang paling baru.
 

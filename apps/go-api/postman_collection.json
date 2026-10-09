@@ -7,8 +7,26 @@
 	},
 	"item": [
 		{
-			"name": "0. Health Check",
+			"name": "0. Documentation & Health",
 			"item": [
+				{
+					"name": "Swagger UI Documentation (/docs)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/docs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"docs"
+							]
+						},
+						"description": "Membuka antarmuka interaktif Swagger UI OpenAPI 3.0."
+					},
+					"response": []
+				},
 				{
 					"name": "Health Check Service & DB",
 					"request": {
@@ -153,6 +171,84 @@
 			"name": "2. Employees",
 			"item": [
 				{
+					"name": "Create Employee (Tambah Karyawan)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Siti Nurhaliza\",\n    \"email\": \"siti@techcorp.com\",\n    \"password\": \"Password123!\",\n    \"employee_code\": \"EMP-002\",\n    \"office_id\": \"b0000000-0000-0000-0000-000000000001\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"employees"
+							]
+						},
+						"description": "Menambahkan data pegawai/karyawan baru di bawah tenant yang sama. Password otomatis di-hash menggunakan bcrypt."
+					},
+					"response": [
+						{
+							"name": "Create Employee Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Siti Nurhaliza\",\n    \"email\": \"siti@techcorp.com\",\n    \"password\": \"Password123!\",\n    \"employee_code\": \"EMP-002\",\n    \"office_id\": \"b0000000-0000-0000-0000-000000000001\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/employees",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"employees"
+									]
+								}
+							},
+							"status": "Created",
+							"code": 201,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"Employee created successfully\",\n    \"employee\": {\n        \"id\": \"f51950d2-97d8-4f05-87d4-0610fba0d540\",\n        \"tenant_id\": \"a0000000-0000-0000-0000-000000000001\",\n        \"office_id\": \"b0000000-0000-0000-0000-000000000001\",\n        \"name\": \"Siti Nurhaliza\",\n        \"email\": \"siti@techcorp.com\",\n        \"employee_code\": \"EMP-002\",\n        \"is_active\": true,\n        \"is_enrolled\": false,\n        \"created_at\": \"2026-10-09T09:10:00Z\"\n    }\n}"
+						}
+					]
+				},
+				{
 					"name": "Get Profile Me",
 					"request": {
 						"auth": {
@@ -211,6 +307,98 @@
 							],
 							"cookie": [],
 							"body": "{\n    \"success\": true,\n    \"employee\": {\n        \"id\": \"c56a4180-65aa-42ec-a945-5fd21dec0538\",\n        \"tenant_id\": \"e02b740e-7c57-4ea2-a164-97217db52f14\",\n        \"office_id\": \"3a726bd7-4999-4d69-bb11-c913501a3ca5\",\n        \"name\": \"Budi Santoso\",\n        \"email\": \"budi@techcorp.com\",\n        \"employee_code\": \"EMP001\",\n        \"is_active\": true,\n        \"is_enrolled\": true,\n        \"face_registered_at\": \"2026-10-09T06:00:00Z\"\n    }\n}"
+						}
+					]
+				},
+				{
+					"name": "Delete Employee (Hapus Karyawan)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/f51950d2-97d8-4f05-87d4-0610fba0d540",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"employees",
+								"f51950d2-97d8-4f05-87d4-0610fba0d540"
+							]
+						},
+						"description": "Menghapus akun karyawan berdasarkan ID UUID. Sistem akan menolak dan menggagalkan jika mencoba menghapus akun diri sendiri yang sedang login."
+					},
+					"response": [
+						{
+							"name": "Delete Success",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/employees/f51950d2-97d8-4f05-87d4-0610fba0d540",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"employees",
+										"f51950d2-97d8-4f05-87d4-0610fba0d540"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": true,\n    \"message\": \"Employee deleted successfully\",\n    \"deleted_id\": \"f51950d2-97d8-4f05-87d4-0610fba0d540\"\n}"
+						},
+						{
+							"name": "Delete Self Rejected",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/employees/c0000000-0000-0000-0000-000000000001",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"employees",
+										"c0000000-0000-0000-0000-000000000001"
+									]
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json; charset=utf-8"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"success\": false,\n    \"error\": \"Gagal: Tidak dapat menghapus akun pegawai diri sendiri\"\n}"
 						}
 					]
 				},

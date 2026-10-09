@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/faceattendance/go-api/internal/config"
+	"github.com/faceattendance/go-api/internal/docs"
 	"github.com/faceattendance/go-api/internal/handler"
 	"github.com/faceattendance/go-api/internal/middleware"
 	"github.com/faceattendance/go-api/internal/repository"
@@ -103,6 +104,9 @@ func main() {
 		})
 	})
 
+	// Swagger UI Documentation endpoint (/docs)
+	docs.RegisterSwaggerRoutes(router)
+
 	// API Routes (v1)
 	apiV1 := router.Group("/api/v1")
 	{
@@ -119,8 +123,10 @@ func main() {
 			// Employees
 			employees := protected.Group("/employees")
 			{
+				employees.POST("", employeeHandler.CreateEmployee)
 				employees.GET("/me", employeeHandler.GetProfile)
 				employees.POST("/enroll-face", employeeHandler.EnrollFace)
+				employees.DELETE("/:id", employeeHandler.DeleteEmployee)
 			}
 
 			// Attendance

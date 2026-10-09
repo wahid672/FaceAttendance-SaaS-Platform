@@ -3,6 +3,7 @@ package handler
 import (
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/faceattendance/go-api/internal/middleware"
 	"github.com/faceattendance/go-api/internal/service"
@@ -16,6 +17,79 @@ type EmployeeHandler struct {
 
 func NewEmployeeHandler(employeeService service.EmployeeService) *EmployeeHandler {
 	return &EmployeeHandler{employeeService: employeeService}
+}
+
+type CreateEmployeeRequest struct {
+	OfficeID     *string `json:"office_id,omitempty"`
+	Name         string  `json:"name" binding:"required"`
+	Email        string  `json:"email" binding:"required,email"`
+	Password     string  `json:"password" binding:"required,min=6"`
+	EmployeeCode string  `json:"employee_code" binding:"required"`
+}
+
+func (h *EmployeeHandler) CreateEmployee(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	var req CreateEmployeeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid request payload: " + err.Error(),
+		})
+		return
+	}
+
+	var officeUUID *uuid.UUID
+	if req.OfficeID != nil && *req.OfficeID != "" {
+		parsed, err := uuid.Parse(*req.OfficeID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"error":   "Invalid office_id format: must be valid UUID",
+			})
+			return
+		}
+		officeUUID = &parsed
+	}
+
+	serviceReq := service.CreateEmployeeRequest{
+		TenantID:     tenantID,
+		OfficeID:     officeUUID,
+		Name:         req.Name,
+		Email:        req.Email,
+		Password:     req.Password,
+		EmployeeCode: req.EmployeeCode,
+	}
+
+	emp, err := h.employeeService.CreateEmployee(c.Request.Context(), serviceReq)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "Employee created successfully",
+		"employee": gin.H{
+			"id":            emp.ID.String(),
+			"tenant_id":     emp.TenantID.String(),
+			"office_id":     emp.OfficeID,
+			"name":          emp.Name,
+			"email":         emp.Email,
+			"employee_code": emp.EmployeeCode,
+			"is_active":     emp.IsActive,
+			"is_enrolled":   false,
+			"created_at":    emp.CreatedAt,
+		},
+	})
 }
 
 func (h *EmployeeHandler) EnrollFace(c *gin.Context) {
@@ -147,3 +221,57 @@ func (h *EmployeeHandler) GetProfile(c *gin.Context) {
 		},
 	})
 }
+
+func (h *EmployeeHandler) DeleteEmployee(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	callerEmployeeIDVal, exists := c.Get(middleware.CtxKeyEmployeeID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing employee context"})
+		return
+	}
+	callerEmployeeID := callerEmployeeIDVal.(uuid.UUID)
+
+	targetIDParam := c.Param("id")
+	targetEmployeeID, err := uuid.Parse(targetIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid employee ID parameter: must be a valid UUID",
+		})
+		return
+	}
+
+	if targetEmployeeID == callerEmployeeID {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Gagal: Tidak dapat menghapus akun pegawai diri sendiri",
+		})
+		return
+	}
+
+	if err := h.employeeService.DeleteEmployee(c.Request.Context(), tenantID, callerEmployeeID, targetEmployeeID); err != nil {
+		if strings.Contains(err.Error(), "cannot delete your own") {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Gagal: Tidak dapat menghapus akun pegawai diri sendiri"})
+			return
+		}
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"message":    "Employee deleted successfully",
+		"deleted_id": targetEmployeeID.String(),
+	})
+}
+

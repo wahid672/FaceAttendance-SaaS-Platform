@@ -12,6 +12,8 @@ import (
 )
 
 type EmployeeRepository interface {
+	Create(ctx context.Context, employee *model.Employee) error
+	Delete(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) (*model.Employee, error)
 	GetByEmail(ctx context.Context, email string) (*model.Employee, *model.Tenant, error)
 	UpdateFaceEmbedding(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) error
@@ -119,3 +121,45 @@ func (r *employeeRepository) CalculateCosineSimilarity(ctx context.Context, id u
 	}
 	return similarity, nil
 }
+
+func (r *employeeRepository) Create(ctx context.Context, employee *model.Employee) error {
+	query := `
+		INSERT INTO employees (
+			id, tenant_id, office_id, name, email, password_hash, employee_code, is_active, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING created_at
+	`
+	if employee.ID == uuid.Nil {
+		employee.ID = uuid.New()
+	}
+	if employee.CreatedAt.IsZero() {
+		employee.CreatedAt = time.Now()
+	}
+
+	return r.db.QueryRow(ctx, query,
+		employee.ID,
+		employee.TenantID,
+		employee.OfficeID,
+		employee.Name,
+		employee.Email,
+		employee.PasswordHash,
+		employee.EmployeeCode,
+		employee.IsActive,
+		employee.CreatedAt,
+	).Scan(&employee.CreatedAt)
+}
+
+func (r *employeeRepository) Delete(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) error {
+	query := `DELETE FROM employees WHERE id = $1 AND tenant_id = $2`
+	cmdTag, err := r.db.Exec(ctx, query, id, tenantID)
+	if err != nil {
+		return err
+	}
+	if cmdTag.RowsAffected() == 0 {
+		return errors.New("employee not found or tenant mismatch")
+	}
+	return nil
+}
+
+
