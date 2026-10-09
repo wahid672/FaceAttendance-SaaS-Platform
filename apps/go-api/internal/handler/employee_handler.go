@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -11,23 +12,54 @@ import (
 	"github.com/google/uuid"
 )
 
-type EmployeeHandler struct {
-	employeeService service.EmployeeService
+type UserHandler struct {
+	userService service.UserService
+}
+
+type EmployeeHandler = UserHandler
+
+func NewUserHandler(userService service.UserService) *UserHandler {
+	return &UserHandler{userService: userService}
 }
 
 func NewEmployeeHandler(employeeService service.EmployeeService) *EmployeeHandler {
-	return &EmployeeHandler{employeeService: employeeService}
+	return NewUserHandler(employeeService)
 }
 
-type CreateEmployeeRequest struct {
+type CreateUserRequest struct {
 	OfficeID     *string `json:"office_id,omitempty"`
 	Name         string  `json:"name" binding:"required"`
 	Email        string  `json:"email" binding:"required,email"`
 	Password     string  `json:"password" binding:"required,min=6"`
-	EmployeeCode string  `json:"employee_code" binding:"required"`
+	UserCode     string  `json:"user_code"`
+	EmployeeCode string  `json:"employee_code"`
 }
 
-func (h *EmployeeHandler) CreateEmployee(c *gin.Context) {
+type CreateEmployeeRequest = CreateUserRequest
+
+type BulkCreateUsersRequest struct {
+	Users []CreateUserRequest `json:"users"`
+}
+
+type BulkDeleteUsersRequest struct {
+	UserIDs []string `json:"user_ids"`
+}
+
+func getCallerUserID(c *gin.Context) (uuid.UUID, bool) {
+	if val, exists := c.Get(middleware.CtxKeyUserID); exists {
+		if id, ok := val.(uuid.UUID); ok {
+			return id, true
+		}
+	}
+	if val, exists := c.Get(middleware.CtxKeyEmployeeID); exists {
+		if id, ok := val.(uuid.UUID); ok {
+			return id, true
+		}
+	}
+	return uuid.Nil, false
+}
+
+func (h *UserHandler) CreateUser(c *gin.Context) {
 	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
@@ -35,11 +67,23 @@ func (h *EmployeeHandler) CreateEmployee(c *gin.Context) {
 	}
 	tenantID := tenantIDVal.(uuid.UUID)
 
-	var req CreateEmployeeRequest
+	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"error":   "Invalid request payload: " + err.Error(),
+		})
+		return
+	}
+
+	code := strings.TrimSpace(req.UserCode)
+	if code == "" {
+		code = strings.TrimSpace(req.EmployeeCode)
+	}
+	if code == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Field 'user_code' (atau 'employee_code') is required",
 		})
 		return
 	}
@@ -57,16 +101,17 @@ func (h *EmployeeHandler) CreateEmployee(c *gin.Context) {
 		officeUUID = &parsed
 	}
 
-	serviceReq := service.CreateEmployeeRequest{
+	serviceReq := service.CreateUserRequest{
 		TenantID:     tenantID,
 		OfficeID:     officeUUID,
 		Name:         req.Name,
 		Email:        req.Email,
 		Password:     req.Password,
-		EmployeeCode: req.EmployeeCode,
+		UserCode:     code,
+		EmployeeCode: code,
 	}
 
-	emp, err := h.employeeService.CreateEmployee(c.Request.Context(), serviceReq)
+	user, err := h.userService.CreateUser(c.Request.Context(), serviceReq)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -77,22 +122,27 @@ func (h *EmployeeHandler) CreateEmployee(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
-		"message": "Employee created successfully",
-		"employee": gin.H{
-			"id":            emp.ID.String(),
-			"tenant_id":     emp.TenantID.String(),
-			"office_id":     emp.OfficeID,
-			"name":          emp.Name,
-			"email":         emp.Email,
-			"employee_code": emp.EmployeeCode,
-			"is_active":     emp.IsActive,
+		"message": "User created successfully",
+		"user": gin.H{
+			"id":            user.ID.String(),
+			"tenant_id":     user.TenantID.String(),
+			"office_id":     user.OfficeID,
+			"name":          user.Name,
+			"email":         user.Email,
+			"user_code":     user.UserCode,
+			"employee_code": user.UserCode,
+			"is_active":     user.IsActive,
 			"is_enrolled":   false,
-			"created_at":    emp.CreatedAt,
+			"created_at":    user.CreatedAt,
 		},
 	})
 }
 
-func (h *EmployeeHandler) EnrollFace(c *gin.Context) {
+func (h *UserHandler) CreateEmployee(c *gin.Context) {
+	h.CreateUser(c)
+}
+
+func (h *UserHandler) BulkCreateUsers(c *gin.Context) {
 	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
@@ -100,25 +150,277 @@ func (h *EmployeeHandler) EnrollFace(c *gin.Context) {
 	}
 	tenantID := tenantIDVal.(uuid.UUID)
 
-	employeeIDVal, exists := c.Get(middleware.CtxKeyEmployeeID)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing employee context"})
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Failed to read request body"})
 		return
 	}
-	targetEmployeeID := employeeIDVal.(uuid.UUID)
 
-	// If an admin/authorized user specifies another employee_id in form or query, allow override
-	if queryEmployeeID := c.PostForm("employee_id"); queryEmployeeID != "" {
-		if parsed, err := uuid.Parse(queryEmployeeID); err == nil {
-			targetEmployeeID = parsed
+	var rawUsers []CreateUserRequest
+	var wrapper BulkCreateUsersRequest
+
+	if err := json.Unmarshal(bodyBytes, &wrapper); err == nil && len(wrapper.Users) > 0 {
+		rawUsers = wrapper.Users
+	} else if err := json.Unmarshal(bodyBytes, &rawUsers); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid JSON format. Expected { 'users': [...] } or array of users [ {...} ]",
+		})
+		return
+	}
+
+	if len(rawUsers) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "List of users cannot be empty"})
+		return
+	}
+
+	var serviceReqs []service.CreateUserRequest
+	for _, u := range rawUsers {
+		code := strings.TrimSpace(u.UserCode)
+		if code == "" {
+			code = strings.TrimSpace(u.EmployeeCode)
 		}
-	} else if queryEmployeeID := c.Query("employee_id"); queryEmployeeID != "" {
-		if parsed, err := uuid.Parse(queryEmployeeID); err == nil {
-			targetEmployeeID = parsed
+
+		var officeUUID *uuid.UUID
+		if u.OfficeID != nil && *u.OfficeID != "" {
+			if parsed, err := uuid.Parse(*u.OfficeID); err == nil {
+				officeUUID = &parsed
+			}
+		}
+
+		serviceReqs = append(serviceReqs, service.CreateUserRequest{
+			TenantID:     tenantID,
+			OfficeID:     officeUUID,
+			Name:         u.Name,
+			Email:        u.Email,
+			Password:     u.Password,
+			UserCode:     code,
+			EmployeeCode: code,
+		})
+	}
+
+	result, err := h.userService.BulkCreateUsers(c.Request.Context(), tenantID, serviceReqs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	statusCode := http.StatusCreated
+	if result.FailedCount > 0 && result.SuccessCount == 0 {
+		statusCode = http.StatusBadRequest
+	}
+
+	c.JSON(statusCode, gin.H{
+		"success":         result.SuccessCount > 0,
+		"message":         "Bulk create users completed",
+		"total_requested": result.TotalRequested,
+		"success_count":   result.SuccessCount,
+		"failed_count":    result.FailedCount,
+		"errors":          result.Errors,
+		"data":            result.Users,
+	})
+}
+
+func (h *UserHandler) ImportUsersCSV(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		fileHeader, err = c.FormFile("csv")
+	}
+	if fileHeader == nil || err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "File CSV is required in form-data field 'file' (or 'csv')",
+		})
+		return
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Failed to read CSV file: " + err.Error()})
+		return
+	}
+	defer file.Close()
+
+	result, err := h.userService.ImportUsersCSV(c.Request.Context(), tenantID, file)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	statusCode := http.StatusOK
+	if result.FailedCount > 0 && result.SuccessCount == 0 {
+		statusCode = http.StatusBadRequest
+	}
+
+	c.JSON(statusCode, gin.H{
+		"success":         result.SuccessCount > 0,
+		"message":         "Import users from CSV completed",
+		"total_requested": result.TotalRequested,
+		"success_count":   result.SuccessCount,
+		"failed_count":    result.FailedCount,
+		"errors":          result.Errors,
+		"data":            result.Users,
+	})
+}
+
+func (h *UserHandler) DeleteUser(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	callerID, exists := getCallerUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing caller user context"})
+		return
+	}
+
+	targetIDParam := c.Param("id")
+	targetID, err := uuid.Parse(targetIDParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid user ID parameter: must be a valid UUID",
+		})
+		return
+	}
+
+	if targetID == callerID {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Gagal: Tidak dapat menghapus akun diri sendiri",
+		})
+		return
+	}
+
+	if err := h.userService.DeleteUser(c.Request.Context(), tenantID, callerID, targetID); err != nil {
+		if strings.Contains(err.Error(), "cannot delete your own") {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Gagal: Tidak dapat menghapus akun diri sendiri"})
+			return
+		}
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"message":    "User deleted successfully",
+		"deleted_id": targetID.String(),
+	})
+}
+
+func (h *UserHandler) DeleteEmployee(c *gin.Context) {
+	h.DeleteUser(c)
+}
+
+func (h *UserHandler) BulkDeleteUsers(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	callerID, exists := getCallerUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing caller user context"})
+		return
+	}
+
+	bodyBytes, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Failed to read request body"})
+		return
+	}
+
+	var idStrings []string
+	var wrapper BulkDeleteUsersRequest
+
+	if err := json.Unmarshal(bodyBytes, &wrapper); err == nil && len(wrapper.UserIDs) > 0 {
+		idStrings = wrapper.UserIDs
+	} else if err := json.Unmarshal(bodyBytes, &idStrings); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid JSON format. Expected { 'user_ids': ['...'] } or array ['...']",
+		})
+		return
+	}
+
+	var parsedUUIDs []uuid.UUID
+	for _, s := range idStrings {
+		if parsed, err := uuid.Parse(strings.TrimSpace(s)); err == nil {
+			parsedUUIDs = append(parsedUUIDs, parsed)
 		}
 	}
 
-	// Parse multipart form (max 32MB)
+	if len(parsedUUIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "No valid user UUIDs provided"})
+		return
+	}
+
+	res, err := h.userService.BulkDeleteUsers(c.Request.Context(), tenantID, callerID, parsedUUIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":         true,
+		"message":         "Bulk delete completed",
+		"total_requested": res.TotalRequested,
+		"deleted_count":   res.DeletedCount,
+		"skipped_self":    res.SkippedSelf,
+		"deleted_ids":     res.DeletedIDs,
+	})
+}
+
+func (h *UserHandler) EnrollFace(c *gin.Context) {
+	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
+		return
+	}
+	tenantID := tenantIDVal.(uuid.UUID)
+
+	callerID, exists := getCallerUserID(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing user context"})
+		return
+	}
+	targetUserID := callerID
+
+	// Allow specifying user_id or employee_id override
+	if queryUserID := c.PostForm("user_id"); queryUserID != "" {
+		if parsed, err := uuid.Parse(queryUserID); err == nil {
+			targetUserID = parsed
+		}
+	} else if queryUserID := c.PostForm("employee_id"); queryUserID != "" {
+		if parsed, err := uuid.Parse(queryUserID); err == nil {
+			targetUserID = parsed
+		}
+	} else if queryUserID := c.Query("user_id"); queryUserID != "" {
+		if parsed, err := uuid.Parse(queryUserID); err == nil {
+			targetUserID = parsed
+		}
+	} else if queryUserID := c.Query("employee_id"); queryUserID != "" {
+		if parsed, err := uuid.Parse(queryUserID); err == nil {
+			targetUserID = parsed
+		}
+	}
+
 	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Failed to parse multipart form: " + err.Error()})
 		return
@@ -146,7 +448,7 @@ func (h *EmployeeHandler) EnrollFace(c *gin.Context) {
 		}
 	}
 
-	// 2. Check for single file with key "image" or "file" if "images" was not provided
+	// 2. Check for single file with key "image" or "file"
 	if len(uploadedFiles) == 0 {
 		for _, key := range []string{"image", "file"} {
 			fileHeader, err := c.FormFile(key)
@@ -175,7 +477,7 @@ func (h *EmployeeHandler) EnrollFace(c *gin.Context) {
 		return
 	}
 
-	embedding, err := h.employeeService.EnrollFace(c.Request.Context(), tenantID, targetEmployeeID, uploadedFiles)
+	embedding, err := h.userService.EnrollFace(c.Request.Context(), tenantID, targetUserID, uploadedFiles)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -187,91 +489,50 @@ func (h *EmployeeHandler) EnrollFace(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success":              true,
 		"message":              "Face enrolled and registered successfully",
-		"employee_id":          targetEmployeeID.String(),
+		"user_id":              targetUserID.String(),
+		"employee_id":          targetUserID.String(),
 		"samples_processed":    len(uploadedFiles),
 		"embedding_dimensions": len(embedding),
 	})
 }
 
-func (h *EmployeeHandler) GetProfile(c *gin.Context) {
+func (h *UserHandler) GetProfile(c *gin.Context) {
 	tenantIDVal, _ := c.Get(middleware.CtxKeyTenantID)
 	tenantID := tenantIDVal.(uuid.UUID)
 
-	employeeIDVal, _ := c.Get(middleware.CtxKeyEmployeeID)
-	employeeID := employeeIDVal.(uuid.UUID)
+	callerID, _ := getCallerUserID(c)
 
-	emp, err := h.employeeService.GetEmployee(c.Request.Context(), tenantID, employeeID)
-	if err != nil || emp == nil {
-		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "Employee not found"})
+	user, err := h.userService.GetUser(c.Request.Context(), tenantID, callerID)
+	if err != nil || user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "error": "User not found"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
+		"user": gin.H{
+			"id":                 user.ID.String(),
+			"tenant_id":          user.TenantID.String(),
+			"office_id":          user.OfficeID,
+			"name":               user.Name,
+			"email":              user.Email,
+			"user_code":          user.UserCode,
+			"employee_code":      user.UserCode,
+			"is_active":          user.IsActive,
+			"is_enrolled":        user.FaceEmbedding != nil,
+			"face_registered_at": user.FaceRegisteredAt,
+		},
 		"employee": gin.H{
-			"id":                 emp.ID.String(),
-			"tenant_id":          emp.TenantID.String(),
-			"office_id":          emp.OfficeID,
-			"name":               emp.Name,
-			"email":              emp.Email,
-			"employee_code":      emp.EmployeeCode,
-			"is_active":          emp.IsActive,
-			"is_enrolled":        emp.FaceEmbedding != nil,
-			"face_registered_at": emp.FaceRegisteredAt,
+			"id":                 user.ID.String(),
+			"tenant_id":          user.TenantID.String(),
+			"office_id":          user.OfficeID,
+			"name":               user.Name,
+			"email":              user.Email,
+			"user_code":          user.UserCode,
+			"employee_code":      user.UserCode,
+			"is_active":          user.IsActive,
+			"is_enrolled":        user.FaceEmbedding != nil,
+			"face_registered_at": user.FaceRegisteredAt,
 		},
 	})
 }
-
-func (h *EmployeeHandler) DeleteEmployee(c *gin.Context) {
-	tenantIDVal, exists := c.Get(middleware.CtxKeyTenantID)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing tenant context"})
-		return
-	}
-	tenantID := tenantIDVal.(uuid.UUID)
-
-	callerEmployeeIDVal, exists := c.Get(middleware.CtxKeyEmployeeID)
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "error": "Unauthorized: missing employee context"})
-		return
-	}
-	callerEmployeeID := callerEmployeeIDVal.(uuid.UUID)
-
-	targetIDParam := c.Param("id")
-	targetEmployeeID, err := uuid.Parse(targetIDParam)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"error":   "Invalid employee ID parameter: must be a valid UUID",
-		})
-		return
-	}
-
-	if targetEmployeeID == callerEmployeeID {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"error":   "Gagal: Tidak dapat menghapus akun pegawai diri sendiri",
-		})
-		return
-	}
-
-	if err := h.employeeService.DeleteEmployee(c.Request.Context(), tenantID, callerEmployeeID, targetEmployeeID); err != nil {
-		if strings.Contains(err.Error(), "cannot delete your own") {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Gagal: Tidak dapat menghapus akun pegawai diri sendiri"})
-			return
-		}
-		if strings.Contains(err.Error(), "not found") {
-			c.JSON(http.StatusNotFound, gin.H{"success": false, "error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success":    true,
-		"message":    "Employee deleted successfully",
-		"deleted_id": targetEmployeeID.String(),
-	})
-}
-

@@ -20,20 +20,24 @@ type LoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type UserData struct {
+	ID           string  `json:"id"`
+	TenantID     string  `json:"tenant_id"`
+	OfficeID     *string `json:"office_id,omitempty"`
+	Name         string  `json:"name"`
+	Email        string  `json:"email"`
+	UserCode     string  `json:"user_code"`
+	EmployeeCode string  `json:"employee_code"`
+	IsActive     bool    `json:"is_active"`
+	IsEnrolled   bool    `json:"is_enrolled"`
+}
+
 type LoginResponse struct {
-	Success  bool   `json:"success"`
-	Token    string `json:"token"`
-	Employee struct {
-		ID           string  `json:"id"`
-		TenantID     string  `json:"tenant_id"`
-		OfficeID     *string `json:"office_id,omitempty"`
-		Name         string  `json:"name"`
-		Email        string  `json:"email"`
-		EmployeeCode string  `json:"employee_code"`
-		IsActive     bool    `json:"is_active"`
-		IsEnrolled   bool    `json:"is_enrolled"`
-	} `json:"employee"`
-	Tenant struct {
+	Success  bool     `json:"success"`
+	Token    string   `json:"token"`
+	User     UserData `json:"user"`
+	Employee UserData `json:"employee"`
+	Tenant   struct {
 		ID        string `json:"id"`
 		Name      string `json:"name"`
 		Subdomain string `json:"subdomain"`
@@ -63,17 +67,31 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	resp.Success = true
 	resp.Token = token
 
-	resp.Employee.ID = employee.ID.String()
-	resp.Employee.TenantID = employee.TenantID.String()
-	if employee.OfficeID != nil {
-		officeIDStr := employee.OfficeID.String()
-		resp.Employee.OfficeID = &officeIDStr
+	code := employee.UserCode
+	if code == "" {
+		code = employee.EmployeeCode
 	}
-	resp.Employee.Name = employee.Name
-	resp.Employee.Email = employee.Email
-	resp.Employee.EmployeeCode = employee.EmployeeCode
-	resp.Employee.IsActive = employee.IsActive
-	resp.Employee.IsEnrolled = employee.FaceEmbedding != nil
+
+	var officeIDStr *string
+	if employee.OfficeID != nil {
+		s := employee.OfficeID.String()
+		officeIDStr = &s
+	}
+
+	userData := UserData{
+		ID:           employee.ID.String(),
+		TenantID:     employee.TenantID.String(),
+		OfficeID:     officeIDStr,
+		Name:         employee.Name,
+		Email:        employee.Email,
+		UserCode:     code,
+		EmployeeCode: code,
+		IsActive:     employee.IsActive,
+		IsEnrolled:   employee.FaceEmbedding != nil,
+	}
+
+	resp.User = userData
+	resp.Employee = userData
 
 	resp.Tenant.ID = tenant.ID.String()
 	resp.Tenant.Name = tenant.Name

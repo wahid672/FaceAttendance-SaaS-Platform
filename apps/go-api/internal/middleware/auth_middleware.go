@@ -11,6 +11,7 @@ import (
 const (
 	CtxKeyClaims     = "jwt_claims"
 	CtxKeyTenantID   = "tenant_id"
+	CtxKeyUserID     = "user_id"
 	CtxKeyEmployeeID = "employee_id"
 )
 
@@ -45,6 +46,7 @@ func AuthMiddleware(authService service.AuthService) gin.HandlerFunc {
 
 		c.Set(CtxKeyClaims, claims)
 		c.Set(CtxKeyTenantID, claims.TenantID)
+		c.Set(CtxKeyUserID, claims.UserID)
 		c.Set(CtxKeyEmployeeID, claims.EmployeeID)
 		c.Next()
 	}

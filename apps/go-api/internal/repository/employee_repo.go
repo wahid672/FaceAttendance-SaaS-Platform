@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/faceattendance/go-api/internal/model"
@@ -13,12 +14,16 @@ import (
 
 type EmployeeRepository interface {
 	Create(ctx context.Context, employee *model.Employee) error
+	BulkCreate(ctx context.Context, employees []*model.Employee) ([]*model.Employee, error)
 	Delete(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) error
+	BulkDelete(ctx context.Context, ids []uuid.UUID, tenantID uuid.UUID) (int64, error)
 	GetByID(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) (*model.Employee, error)
 	GetByEmail(ctx context.Context, email string) (*model.Employee, *model.Tenant, error)
 	UpdateFaceEmbedding(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) error
 	CalculateCosineSimilarity(ctx context.Context, id uuid.UUID, tenantID uuid.UUID, embeddingStr string) (float64, error)
 }
+
+type UserRepository = EmployeeRepository
 
 type employeeRepository struct {
 	db *pgxpool.Pool
@@ -137,6 +142,13 @@ func (r *employeeRepository) Create(ctx context.Context, employee *model.Employe
 		employee.CreatedAt = time.Now()
 	}
 
+	code := employee.UserCode
+	if code == "" {
+		code = employee.EmployeeCode
+	}
+	employee.EmployeeCode = code
+	employee.UserCode = code
+
 	return r.db.QueryRow(ctx, query,
 		employee.ID,
 		employee.TenantID,
@@ -144,10 +156,67 @@ func (r *employeeRepository) Create(ctx context.Context, employee *model.Employe
 		employee.Name,
 		employee.Email,
 		employee.PasswordHash,
-		employee.EmployeeCode,
+		code,
 		employee.IsActive,
 		employee.CreatedAt,
 	).Scan(&employee.CreatedAt)
+}
+
+func (r *employeeRepository) BulkCreate(ctx context.Context, employees []*model.Employee) ([]*model.Employee, error) {
+	if len(employees) == 0 {
+		return []*model.Employee{}, nil
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	query := `
+		INSERT INTO employees (
+			id, tenant_id, office_id, name, email, password_hash, employee_code, is_active, created_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING created_at
+	`
+
+	now := time.Now()
+	for _, emp := range employees {
+		if emp.ID == uuid.Nil {
+			emp.ID = uuid.New()
+		}
+		if emp.CreatedAt.IsZero() {
+			emp.CreatedAt = now
+		}
+		code := emp.UserCode
+		if code == "" {
+			code = emp.EmployeeCode
+		}
+		emp.EmployeeCode = code
+		emp.UserCode = code
+
+		err := tx.QueryRow(ctx, query,
+			emp.ID,
+			emp.TenantID,
+			emp.OfficeID,
+			emp.Name,
+			emp.Email,
+			emp.PasswordHash,
+			code,
+			emp.IsActive,
+			emp.CreatedAt,
+		).Scan(&emp.CreatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to insert user (%s): %w", emp.Email, err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit bulk insert: %w", err)
+	}
+
+	return employees, nil
 }
 
 func (r *employeeRepository) Delete(ctx context.Context, id uuid.UUID, tenantID uuid.UUID) error {
@@ -157,9 +226,26 @@ func (r *employeeRepository) Delete(ctx context.Context, id uuid.UUID, tenantID 
 		return err
 	}
 	if cmdTag.RowsAffected() == 0 {
-		return errors.New("employee not found or tenant mismatch")
+		return errors.New("user not found or tenant mismatch")
 	}
 	return nil
+}
+
+func (r *employeeRepository) BulkDelete(ctx context.Context, ids []uuid.UUID, tenantID uuid.UUID) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	query := `DELETE FROM employees WHERE id = ANY($1) AND tenant_id = $2`
+	cmdTag, err := r.db.Exec(ctx, query, ids, tenantID)
+	if err != nil {
+		return 0, err
+	}
+	return cmdTag.RowsAffected(), nil
+}
+
+func NewUserRepository(db *pgxpool.Pool) UserRepository {
+	return NewEmployeeRepository(db)
 }
 
 

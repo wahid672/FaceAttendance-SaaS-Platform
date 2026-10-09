@@ -55,6 +55,7 @@ func (s *authService) Login(ctx context.Context, email, password string) (string
 	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &model.JWTClaims{
 		TenantID:   tenant.ID,
+		UserID:     employee.ID,
 		EmployeeID: employee.ID,
 		OfficeID:   employee.OfficeID,
 		Email:      employee.Email,

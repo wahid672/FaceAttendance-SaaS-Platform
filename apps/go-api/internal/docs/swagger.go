@@ -48,7 +48,7 @@ const swaggerJSON = `{
   "openapi": "3.0.3",
   "info": {
     "title": "FaceAttendance SaaS Go API",
-    "description": "High-Performance Go REST API microservice untuk Face Attendance SaaS Platform dengan PostgreSQL pgvector dan InsightFace AI Engine.",
+    "description": "High-Performance Go REST API microservice untuk Face Attendance SaaS Platform (Siswa, Santri, Pegawai, Karyawan) dengan PostgreSQL pgvector dan InsightFace AI Engine.",
     "version": "1.0.0"
   },
   "servers": [
@@ -82,33 +82,63 @@ const swaggerJSON = `{
           }
         }
       },
-      "CreateEmployeeRequest": {
+      "CreateUserRequest": {
         "type": "object",
-        "required": ["name", "email", "password", "employee_code"],
+        "required": ["name", "email", "password"],
         "properties": {
           "name": {
             "type": "string",
-            "example": "Siti Nurhaliza"
+            "example": "Ahmad Fauzi"
           },
           "email": {
             "type": "string",
             "format": "email",
-            "example": "siti@techcorp.com"
+            "example": "ahmad@sekolah.com"
           },
           "password": {
             "type": "string",
             "minLength": 6,
             "example": "Password123!"
           },
-          "employee_code": {
+          "user_code": {
             "type": "string",
-            "example": "EMP-002"
+            "example": "SISWA-001",
+            "description": "NIS / NIK / NIP / Kode Pegawai"
           },
           "office_id": {
             "type": "string",
             "format": "uuid",
             "example": "b0000000-0000-0000-0000-000000000001",
             "description": "Opsional: ID kantor penugasan geofence"
+          }
+        }
+      },
+      "BulkCreateUsersRequest": {
+        "type": "object",
+        "required": ["users"],
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateUserRequest"
+            }
+          }
+        }
+      },
+      "BulkDeleteUsersRequest": {
+        "type": "object",
+        "required": ["user_ids"],
+        "properties": {
+          "user_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": [
+              "c0000000-0000-0000-0000-000000000002",
+              "c0000000-0000-0000-0000-000000000003"
+            ]
           }
         }
       }
@@ -130,7 +160,7 @@ const swaggerJSON = `{
     "/api/v1/auth/login": {
       "post": {
         "tags": ["Authentication"],
-        "summary": "Login Employee",
+        "summary": "Login Pengguna",
         "description": "Verifikasi kredensial email & password dan menerbitkan JWT token.",
         "requestBody": {
           "required": true,
@@ -152,11 +182,11 @@ const swaggerJSON = `{
         }
       }
     },
-    "/api/v1/employees": {
+    "/api/v1/users": {
       "post": {
-        "tags": ["Employees"],
-        "summary": "Tambah Karyawan Baru",
-        "description": "Menambahkan data karyawan baru di bawah tenant yang sama. Password otomatis di-hash dengan bcrypt.",
+        "tags": ["Users"],
+        "summary": "Tambah Pengguna Baru (Single)",
+        "description": "Menambahkan data pengguna (siswa/santri/karyawan) baru di bawah tenant yang sama. Password di-hash dengan bcrypt.",
         "security": [
           {
             "BearerAuth": []
@@ -167,14 +197,14 @@ const swaggerJSON = `{
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateEmployeeRequest"
+                "$ref": "#/components/schemas/CreateUserRequest"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Karyawan berhasil dibuat"
+            "description": "User berhasil dibuat"
           },
           "400": {
             "description": "Validasi gagal / email sudah terdaftar"
@@ -185,11 +215,104 @@ const swaggerJSON = `{
         }
       }
     },
-    "/api/v1/employees/me": {
+    "/api/v1/users/bulk": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Bulk Create Users (Upload Massal via JSON)",
+        "description": "Menambahkan banyak pengguna sekaligus melalui JSON array atau wrapper { users: [...] } dalam transaksi database.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkCreateUsersRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Proses bulk insert berhasil"
+          },
+          "400": {
+            "description": "Semua data gagal divalidasi"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Users"],
+        "summary": "Bulk Delete Users (Hapus Massal)",
+        "description": "Menghapus banyak akun pengguna sekaligus berdasarkan daftar UUID. Akun diri sendiri otomatis dilewati/dilindungi.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDeleteUsersRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk delete selesai dieksekusi"
+          }
+        }
+      }
+    },
+    "/api/v1/users/import-csv": {
+      "post": {
+        "tags": ["Users"],
+        "summary": "Import Users via CSV (Upload Massal File)",
+        "description": "Import data pengguna massal dari file .csv (header: name, email, password, user_code, office_id).",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "File CSV daftar user"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hasil pemrosesan file CSV berhasil"
+          },
+          "400": {
+            "description": "Format file tidak valid atau data gagal diproses"
+          }
+        }
+      }
+    },
+    "/api/v1/users/me": {
       "get": {
-        "tags": ["Employees"],
+        "tags": ["Users"],
         "summary": "Profil Saya",
-        "description": "Mengambil data profil employee yang saat ini sedang login.",
+        "description": "Mengambil data profil pengguna yang saat ini sedang login.",
         "security": [
           {
             "BearerAuth": []
@@ -205,11 +328,11 @@ const swaggerJSON = `{
         }
       }
     },
-    "/api/v1/employees/{id}": {
+    "/api/v1/users/{id}": {
       "delete": {
-        "tags": ["Employees"],
-        "summary": "Hapus Karyawan",
-        "description": "Menghapus akun karyawan berdasarkan ID. Gagal jika mencoba menghapus akun diri sendiri.",
+        "tags": ["Users"],
+        "summary": "Hapus Pengguna (Single)",
+        "description": "Menghapus akun pengguna berdasarkan ID. Gagal jika mencoba menghapus akun diri sendiri.",
         "security": [
           {
             "BearerAuth": []
@@ -220,7 +343,7 @@ const swaggerJSON = `{
             "name": "id",
             "in": "path",
             "required": true,
-            "description": "UUID employee yang ingin dihapus",
+            "description": "UUID pengguna yang ingin dihapus",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -229,23 +352,20 @@ const swaggerJSON = `{
         ],
         "responses": {
           "200": {
-            "description": "Karyawan berhasil dihapus"
+            "description": "Pengguna berhasil dihapus"
           },
           "400": {
-            "description": "Gagal: Tidak dapat menghapus akun pegawai diri sendiri / format UUID invalid"
+            "description": "Gagal: Tidak dapat menghapus akun diri sendiri"
           },
           "404": {
-            "description": "Employee tidak ditemukan atau tenant mismatch"
-          },
-          "401": {
-            "description": "Unauthorized"
+            "description": "Pengguna tidak ditemukan"
           }
         }
       }
     },
-    "/api/v1/employees/enroll-face": {
+    "/api/v1/users/enroll-face": {
       "post": {
-        "tags": ["Employees"],
+        "tags": ["Users"],
         "summary": "Enroll Master Vector Wajah",
         "description": "Upload 3-5 foto wajah master untuk diekstraksi menjadi embedding 512-dimensi dan disimpan ke pgvector.",
         "security": [
@@ -268,10 +388,10 @@ const swaggerJSON = `{
                     },
                     "description": "File foto sampel wajah (3-5 foto)"
                   },
-                  "employee_id": {
+                  "user_id": {
                     "type": "string",
                     "format": "uuid",
-                    "description": "Opsional jika admin mendaftarkan pegawai lain"
+                    "description": "Opsional: Jika admin mendaftarkan wajah pengguna lain"
                   }
                 }
               }
@@ -328,7 +448,7 @@ const swaggerJSON = `{
                   },
                   "device_id": {
                     "type": "string",
-                    "example": "samsung-s24-xyz"
+                    "example": "device-uuid-123"
                   }
                 }
               }

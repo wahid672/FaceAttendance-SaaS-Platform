@@ -120,13 +120,28 @@ func main() {
 		protected := apiV1.Group("")
 		protected.Use(middleware.AuthMiddleware(authService))
 		{
-			// Employees
+			// Users endpoints (Mencakup Siswa, Santri, Guru, Karyawan, Pegawai)
+			users := protected.Group("/users")
+			{
+				users.POST("", employeeHandler.CreateUser)
+				users.POST("/bulk", employeeHandler.BulkCreateUsers)
+				users.POST("/import-csv", employeeHandler.ImportUsersCSV)
+				users.DELETE("/bulk", employeeHandler.BulkDeleteUsers)
+				users.DELETE("/:id", employeeHandler.DeleteUser)
+				users.GET("/me", employeeHandler.GetProfile)
+				users.POST("/enroll-face", employeeHandler.EnrollFace)
+			}
+
+			// Alias /employees untuk backward-compatibility
 			employees := protected.Group("/employees")
 			{
-				employees.POST("", employeeHandler.CreateEmployee)
+				employees.POST("", employeeHandler.CreateUser)
+				employees.POST("/bulk", employeeHandler.BulkCreateUsers)
+				employees.POST("/import-csv", employeeHandler.ImportUsersCSV)
+				employees.DELETE("/bulk", employeeHandler.BulkDeleteUsers)
+				employees.DELETE("/:id", employeeHandler.DeleteUser)
 				employees.GET("/me", employeeHandler.GetProfile)
 				employees.POST("/enroll-face", employeeHandler.EnrollFace)
-				employees.DELETE("/:id", employeeHandler.DeleteEmployee)
 			}
 
 			// Attendance

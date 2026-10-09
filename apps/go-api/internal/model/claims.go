@@ -7,6 +7,7 @@ import (
 
 type JWTClaims struct {
 	TenantID   uuid.UUID  `json:"tenant_id"`
+	UserID     uuid.UUID  `json:"user_id"`
 	EmployeeID uuid.UUID  `json:"employee_id"`
 	OfficeID   *uuid.UUID `json:"office_id,omitempty"`
 	Email      string     `json:"email"`
