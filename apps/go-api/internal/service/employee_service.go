@@ -402,7 +402,7 @@ func (s *employeeService) GetEmployee(ctx context.Context, tenantID, employeeID 
 }
 
 func (s *employeeService) GetUser(ctx context.Context, tenantID, userID uuid.UUID) (*model.User, error) {
-	return s.GetEmployee(ctx, userID, tenantID)
+	return s.GetEmployee(ctx, tenantID, userID)
 }
 
 func (s *employeeService) DeleteEmployee(ctx context.Context, tenantID, callerEmployeeID, targetEmployeeID uuid.UUID) error {
